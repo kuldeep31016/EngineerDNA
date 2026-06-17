@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { PrismaModule } from "./prisma/prisma.module";
@@ -12,7 +13,12 @@ import { ProfileModule } from "./profile/profile.module";
  */
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    // Loads the single monorepo-root .env whether the API runs from the repo
+    // root (Docker) or from apps/api (local `pnpm dev`).
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: [join(process.cwd(), ".env"), join(process.cwd(), "..", "..", ".env")],
+    }),
     PrismaModule,
     HealthModule,
     UsersModule,
