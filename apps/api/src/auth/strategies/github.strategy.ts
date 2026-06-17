@@ -14,9 +14,9 @@ import type { OAuthProfileInput } from "../../users/users.service";
 export class GithubStrategy extends PassportStrategy(Strategy, "github") {
   constructor(config: ConfigService) {
     super({
-      clientID: config.get<string>("GITHUB_CLIENT_ID") ?? "not-configured",
-      clientSecret: config.get<string>("GITHUB_CLIENT_SECRET") ?? "not-configured",
-      callbackURL: `${config.get<string>("API_PUBLIC_URL") ?? "http://localhost:4000/api"}/auth/github/callback`,
+      clientID: config.get<string>("GITHUB_CLIENT_ID") || "not-configured",
+      clientSecret: config.get<string>("GITHUB_CLIENT_SECRET") || "not-configured",
+      callbackURL: `${config.get<string>("API_PUBLIC_URL") || "http://localhost:4000/api"}/auth/github/callback`,
       scope: ["user:email"],
     });
   }
