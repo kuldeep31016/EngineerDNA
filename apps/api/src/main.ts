@@ -1,7 +1,9 @@
 import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
+import cookieParser from "cookie-parser";
 import { AppModule } from "./app.module";
+import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 
 /**
  * API bootstrap. All HTTP routes are namespaced under `/api`.
@@ -12,6 +14,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
 
   app.setGlobalPrefix("api");
+  app.use(cookieParser());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -19,6 +22,7 @@ async function bootstrap(): Promise<void> {
       transform: true,
     }),
   );
+  app.useGlobalFilters(new AllExceptionsFilter());
   app.enableCors({
     origin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
     credentials: true,
