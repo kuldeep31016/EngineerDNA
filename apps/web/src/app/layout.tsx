@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { APP_NAME, APP_TAGLINE } from "@engineerdna/shared";
+import { AuthProvider } from "@/components/auth/AuthProvider";
+import { Navbar } from "@/components/Navbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +17,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body>{children}</body>
+      <body>
+        <AuthProvider>
+          <Navbar />
+          {children}
+        </AuthProvider>
+      </body>
     </html>
   );
 }
