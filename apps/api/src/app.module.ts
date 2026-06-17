@@ -12,6 +12,7 @@ import { AnalysisModule } from "./analysis/analysis.module";
 import { EvidenceModule } from "./evidence/evidence.module";
 import { VerificationModule } from "./verification/verification.module";
 import { DnaModule } from "./dna/dna.module";
+import { ProjectIntelligenceModule } from "./project/project-intelligence.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -36,6 +37,7 @@ import { DnaModule } from "./dna/dna.module";
     EvidenceModule,
     VerificationModule,
     DnaModule,
+    ProjectIntelligenceModule,
   ],
 })
 export class AppModule {}
