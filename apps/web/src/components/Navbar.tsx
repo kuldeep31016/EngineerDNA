@@ -28,6 +28,9 @@ export function Navbar() {
               <Link href="/dashboard" className="text-muted-foreground hover:text-foreground">
                 Dashboard
               </Link>
+              <Link href="/repositories" className="text-muted-foreground hover:text-foreground">
+                Repositories
+              </Link>
               <Link href="/profile" className="text-muted-foreground hover:text-foreground">
                 {user?.name ?? "Profile"}
               </Link>
