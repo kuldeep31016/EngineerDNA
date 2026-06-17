@@ -9,6 +9,7 @@ import { ProfileModule } from "./profile/profile.module";
 import { GithubModule } from "./github/github.module";
 import { LlmModule } from "./llm/llm.module";
 import { AnalysisModule } from "./analysis/analysis.module";
+import { EvidenceModule } from "./evidence/evidence.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -30,6 +31,7 @@ import { AnalysisModule } from "./analysis/analysis.module";
     ProfileModule,
     GithubModule,
     AnalysisModule,
+    EvidenceModule,
   ],
 })
 export class AppModule {}
