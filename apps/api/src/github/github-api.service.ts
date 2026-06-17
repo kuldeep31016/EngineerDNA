@@ -74,6 +74,52 @@ export class GithubApiService {
     return all;
   }
 
+  /** Languages used in a repo (returns the language names, most-bytes first). */
+  async getLanguages(token: string, fullName: string): Promise<string[]> {
+    const res = await fetch(`${this.api}/repos/${fullName}/languages`, {
+      headers: this.headers(token),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as Record<string, number>;
+    return Object.entries(data)
+      .sort((a, b) => b[1] - a[1])
+      .map(([lang]) => lang);
+  }
+
+  /** Recursive file paths in a repo (capped). Used to understand structure. */
+  async getFileTree(token: string, fullName: string, branch: string): Promise<string[]> {
+    const res = await fetch(
+      `${this.api}/repos/${fullName}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+      { headers: this.headers(token) },
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as { tree?: { path: string; type: string }[] };
+    return (data.tree ?? []).filter((n) => n.type === "blob").map((n) => n.path);
+  }
+
+  /** Decoded content of a single file, or null if absent/too large. */
+  async getFileContent(token: string, fullName: string, path: string): Promise<string | null> {
+    const res = await fetch(
+      `${this.api}/repos/${fullName}/contents/${path.split("/").map(encodeURIComponent).join("/")}`,
+      { headers: this.headers(token) },
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { content?: string; encoding?: string };
+    if (!data.content || data.encoding !== "base64") return null;
+    return Buffer.from(data.content, "base64").toString("utf8");
+  }
+
+  /** The repo's README text, or null. */
+  async getReadme(token: string, fullName: string): Promise<string | null> {
+    const res = await fetch(`${this.api}/repos/${fullName}/readme`, {
+      headers: this.headers(token),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { content?: string; encoding?: string };
+    if (!data.content || data.encoding !== "base64") return null;
+    return Buffer.from(data.content, "base64").toString("utf8");
+  }
+
   private headers(token: string): Record<string, string> {
     return {
       Authorization: `Bearer ${token}`,
