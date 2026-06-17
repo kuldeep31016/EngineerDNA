@@ -13,6 +13,6 @@ import { GithubModule } from "../github/github.module";
   imports: [GithubModule],
   controllers: [AnalysisController],
   providers: [AnalysisService, RepoFactsService],
-  exports: [AnalysisService],
+  exports: [AnalysisService, RepoFactsService],
 })
 export class AnalysisModule {}
