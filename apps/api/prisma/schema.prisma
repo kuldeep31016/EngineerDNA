@@ -40,6 +40,35 @@ enum AnalysisStatus {
   FAILED
 }
 
+/// Category of a technology in the evidence store (Module 6).
+enum TechCategory {
+  LANGUAGE
+  FRAMEWORK
+  DATABASE
+  CLOUD
+  TESTING
+  DEPLOYMENT
+  LIBRARY
+  TOOL
+  AUTH
+}
+
+/// USED = proven by real implementation; MENTIONED = declared but unconfirmed.
+enum EvidenceStrength {
+  MENTIONED
+  USED
+}
+
+/// Where a piece of evidence came from. Source-typed so non-repo signals
+/// (interviews, learning, open source) can be first-class evidence later.
+enum EvidenceSource {
+  GITHUB_REPO
+  INTERVIEW
+  LEARNING
+  OPEN_SOURCE
+  RESUME
+}
+
 /// A platform user. Created automatically on first OAuth login.
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -58,6 +87,7 @@ model User {
   refreshTokens RefreshToken[]
   profile       Profile?
   githubAccount GithubAccount?
+  evidence      TechEvidence[]
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -95,14 +125,42 @@ model Repository {
   htmlUrl             String
   defaultBranch       String?
   pushedAt            DateTime?
+  // GitHub repo creation date — proxy for "when the developer started using a
+  // technology" in the Evidence Timeline.
+  repoCreatedAt       DateTime?
   selectedForAnalysis Boolean       @default(false)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
   analysis RepositoryAnalysis?
+  evidence TechEvidence[]
 
   @@unique([githubAccountId, githubId])
   @@index([githubAccountId])
+}
+
+/// Evidence that a developer USED or MENTIONED a technology in a repository.
+/// This is the reusable "truth layer": skill verification, DNA, and ranking
+/// all read from here rather than re-scanning repositories.
+model TechEvidence {
+  id           String           @id @default(uuid()) @db.Uuid
+  userId       String           @db.Uuid
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repositoryId String           @db.Uuid
+  repository   Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  technology   String
+  category     TechCategory
+  strength     EvidenceStrength
+  confidence   Float            @default(0.5)
+  source       EvidenceSource   @default(GITHUB_REPO)
+  proofs       Json             @default("[]")
+  firstSeenAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([repositoryId, technology])
+  @@index([userId, technology])
+  @@index([userId, category])
 }
 
 /// An engineering report for a repository, produced asynchronously by the LLM
