@@ -34,6 +34,9 @@ export function Navbar() {
               <Link href="/evidence" className="text-muted-foreground hover:text-foreground">
                 Evidence
               </Link>
+              <Link href="/dna" className="text-muted-foreground hover:text-foreground">
+                DNA
+              </Link>
               <Link href="/profile" className="text-muted-foreground hover:text-foreground">
                 {user?.name ?? "Profile"}
               </Link>
