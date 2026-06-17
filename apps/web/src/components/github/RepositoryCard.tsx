@@ -1,6 +1,7 @@
 "use client";
 
-import { GitFork, Globe, Lock, Star } from "lucide-react";
+import Link from "next/link";
+import { FileText, GitFork, Globe, Lock, Star } from "lucide-react";
 import type { Repository } from "@engineerdna/shared";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,13 @@ export function RepositoryCard({
           {repo.pushedAt && <span>Updated {new Date(repo.pushedAt).toLocaleDateString()}</span>}
         </div>
       </div>
+
+      <Link
+        href={`/repositories/${repo.id}`}
+        className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-accent"
+      >
+        <FileText className="h-3.5 w-3.5" /> Report
+      </Link>
     </div>
   );
 }
