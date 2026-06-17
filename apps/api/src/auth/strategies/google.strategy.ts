@@ -13,9 +13,9 @@ import type { OAuthProfileInput } from "../../users/users.service";
 export class GoogleStrategy extends PassportStrategy(Strategy, "google") {
   constructor(config: ConfigService) {
     super({
-      clientID: config.get<string>("GOOGLE_CLIENT_ID") ?? "not-configured",
-      clientSecret: config.get<string>("GOOGLE_CLIENT_SECRET") ?? "not-configured",
-      callbackURL: `${config.get<string>("API_PUBLIC_URL") ?? "http://localhost:4000/api"}/auth/google/callback`,
+      clientID: config.get<string>("GOOGLE_CLIENT_ID") || "not-configured",
+      clientSecret: config.get<string>("GOOGLE_CLIENT_SECRET") || "not-configured",
+      callbackURL: `${config.get<string>("API_PUBLIC_URL") || "http://localhost:4000/api"}/auth/google/callback`,
       scope: ["email", "profile"],
     });
   }
