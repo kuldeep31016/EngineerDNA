@@ -11,6 +11,7 @@ import { LlmModule } from "./llm/llm.module";
 import { AnalysisModule } from "./analysis/analysis.module";
 import { EvidenceModule } from "./evidence/evidence.module";
 import { VerificationModule } from "./verification/verification.module";
+import { DnaModule } from "./dna/dna.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -34,6 +35,7 @@ import { VerificationModule } from "./verification/verification.module";
     AnalysisModule,
     EvidenceModule,
     VerificationModule,
+    DnaModule,
   ],
 })
 export class AppModule {}
