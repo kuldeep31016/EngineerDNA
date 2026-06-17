@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  BadgeCheck,
   Boxes,
   Code2,
   Database,
@@ -28,11 +29,13 @@ import type {
   ComplexityLevel,
   Repository,
   RepositoryAnalysis,
+  RepoEvidenceItem,
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { Button } from "@/components/ui/button";
 import { getAnalysis, getRepository, startAnalysis } from "@/services/analysis";
+import { buildRepoEvidence, getRepoEvidence } from "@/services/evidence";
 
 const COMPLEXITY: Record<ComplexityLevel, { label: string; className: string }> = {
   beginner: { label: "Beginner", className: "bg-sky-500/10 text-sky-400 ring-sky-500/20" },
@@ -126,13 +129,95 @@ function ReportContent() {
         </Button>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-4">
+        <EvidencePanel repoId={id} />
         {!analysis && <EmptyState />}
         {isRunning && <RunningState />}
         {analysis?.status === "FAILED" && <FailedState error={analysis.error} />}
         {done && <ReportView report={analysis!.report!} model={analysis!.model} updatedAt={analysis!.updatedAt} />}
       </div>
     </main>
+  );
+}
+
+function EvidencePanel({ repoId }: { repoId: string }) {
+  const [items, setItems] = useState<RepoEvidenceItem[] | null>(null);
+  const [building, setBuilding] = useState(false);
+
+  useEffect(() => {
+    void getRepoEvidence(repoId).then(setItems);
+  }, [repoId]);
+
+  const build = async () => {
+    setBuilding(true);
+    try {
+      setItems(await buildRepoEvidence(repoId));
+    } finally {
+      setBuilding(false);
+    }
+  };
+
+  const used = items?.filter((i) => i.strength === "USED") ?? [];
+  const mentioned = items?.filter((i) => i.strength === "MENTIONED") ?? [];
+  const hasAny = items && items.length > 0;
+
+  return (
+    <Panel className="p-5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <SectionHead icon={BadgeCheck} title="Evidence" />
+        <Button variant="outline" size="sm" onClick={build} disabled={building}>
+          {building ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+          {hasAny ? "Rebuild" : "Build evidence"}
+        </Button>
+      </div>
+
+      {!hasAny ? (
+        <p className="text-sm text-muted-foreground">
+          Detect what this repository actually <span className="font-medium">uses</span> versus
+          what is only <span className="font-medium">mentioned</span> as a dependency. No AI cost —
+          this runs instantly.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {used.length > 0 && <EvidenceGroup label="Verified — actually used" items={used} used />}
+          {mentioned.length > 0 && (
+            <EvidenceGroup label="Mentioned only" items={mentioned} used={false} />
+          )}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function EvidenceGroup({
+  label,
+  items,
+  used,
+}: {
+  label: string;
+  items: RepoEvidenceItem[];
+  used: boolean;
+}) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((item) => (
+          <span
+            key={item.technology}
+            title={item.proofs.map((p) => p.detail).join("\n")}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ${
+              used
+                ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                : "bg-amber-500/10 text-amber-400 ring-amber-500/20"
+            }`}
+          >
+            {used && <BadgeCheck className="h-3 w-3" />}
+            {item.technology}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
