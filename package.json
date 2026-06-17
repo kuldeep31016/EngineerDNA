@@ -10,6 +10,9 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "start": "docker compose up -d postgres && turbo run dev",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose stop postgres",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
