@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { X } from "lucide-react";
 import { useAuthStore } from "@/store/auth";
 import { oauthUrl } from "@/services/auth";
 
@@ -37,7 +38,15 @@ export default function ConnectPage() {
   }, [status, router]);
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-[1.05fr_.95fr]" style={{ background: C.bg, color: C.tx }}>
+    <div className="relative grid min-h-screen lg:grid-cols-[1.05fr_.95fr]" style={{ background: C.bg, color: C.tx }}>
+      <Link
+        href="/"
+        aria-label="Back to home"
+        className="absolute right-5 top-5 z-10 rounded-md p-2 transition-colors hover:bg-white/5"
+        style={{ color: C.tx2 }}
+      >
+        <X className="h-5 w-5" />
+      </Link>
       {/* Left brand panel */}
       <div
         className="relative hidden flex-col justify-between overflow-hidden lg:flex"
