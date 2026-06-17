@@ -38,6 +38,22 @@ export class AnalysisService {
   /** Kick off (or re-run) analysis. Returns immediately; work runs in background. */
   async startAnalysis(user: User, repoId: string): Promise<RepositoryAnalysis> {
     const repo = await this.requireOwnedRepo(user, repoId);
+
+    // Cost guard: reuse a still-valid report instead of paying for the LLM again.
+    // A report is still valid if it succeeded, used the current model, and the
+    // repository hasn't been pushed to since it was generated.
+    const existing = await this.prisma.repositoryAnalysis.findUnique({
+      where: { repositoryId: repo.id },
+    });
+    if (
+      existing &&
+      existing.status === "COMPLETED" &&
+      existing.model === this.anthropic.model &&
+      AnalysisService.isUpToDate(repo, existing)
+    ) {
+      return AnalysisService.toContract(existing);
+    }
+
     const row = await this.prisma.repositoryAnalysis.upsert({
       where: { repositoryId: repo.id },
       create: { repositoryId: repo.id, status: "RUNNING", model: this.anthropic.model },
@@ -92,6 +108,12 @@ export class AnalysisService {
       throw new NotFoundException("Repository not found");
     }
     return repo;
+  }
+
+  /** True if the report still reflects the repository's latest push. */
+  private static isUpToDate(repo: Repository, analysis: AnalysisRow): boolean {
+    if (!repo.pushedAt) return true; // no push info — treat the report as current
+    return repo.pushedAt.getTime() <= analysis.updatedAt.getTime();
   }
 
   private static toContract(row: AnalysisRow): RepositoryAnalysis {
