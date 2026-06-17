@@ -32,6 +32,14 @@ enum SkillStatus {
   REFUTED
 }
 
+/// Lifecycle of a repository analysis job (Module 5).
+enum AnalysisStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 /// A platform user. Created automatically on first OAuth login.
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -91,8 +99,24 @@ model Repository {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
+  analysis RepositoryAnalysis?
+
   @@unique([githubAccountId, githubId])
   @@index([githubAccountId])
+}
+
+/// An engineering report for a repository, produced asynchronously by the LLM
+/// from the repository's facts. One per repository (re-running replaces it).
+model RepositoryAnalysis {
+  id           String         @id @default(uuid()) @db.Uuid
+  repositoryId String         @unique @db.Uuid
+  repository   Repository     @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  status       AnalysisStatus @default(PENDING)
+  report       Json?
+  model        String?
+  error        String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 }
 
 /// The Engineering Passport — a developer's verified identity. One per user.
