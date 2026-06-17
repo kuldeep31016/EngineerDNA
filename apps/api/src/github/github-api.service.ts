@@ -14,6 +14,7 @@ export interface GithubRepo {
   html_url: string;
   default_branch: string | null;
   pushed_at: string | null;
+  created_at: string | null;
 }
 
 interface GithubUser {
