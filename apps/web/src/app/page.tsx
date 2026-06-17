@@ -98,7 +98,7 @@ function Nav() {
           Login
         </Link>
         <Link
-          href="/login"
+          href="/connect"
           className="flex items-center gap-2 transition-colors hover:bg-[#202024]"
           style={{
             fontSize: 13.5,
@@ -147,7 +147,7 @@ function Hero() {
           </p>
           <div className="mb-9 flex items-center gap-3">
             <Link
-              href="/login"
+              href="/connect"
               className="flex items-center gap-2.5"
               style={{ fontSize: 15, fontWeight: 600, color: "#fff", background: "linear-gradient(140deg,#6366F1,#7C5CF6)", padding: "13px 22px", borderRadius: 12, boxShadow: "0 8px 28px rgba(99,102,241,.35)" }}
             >
@@ -426,7 +426,7 @@ function Showcase() {
       </div>
       <div className="relative mx-auto hidden md:block" style={{ height: 520, maxWidth: 1000 }}>
         {/* recruiter (back) */}
-        <Link href="/login" className="absolute overflow-hidden" style={{ top: 40, right: 0, width: 560, border: `1px solid ${C.line}`, borderRadius: 16, background: "linear-gradient(180deg,#101013,#0A0A0D)", boxShadow: "0 30px 70px -25px rgba(0,0,0,.9)", transform: "rotate(1.4deg)" }}>
+        <Link href="/connect" className="absolute overflow-hidden" style={{ top: 40, right: 0, width: 560, border: `1px solid ${C.line}`, borderRadius: 16, background: "linear-gradient(180deg,#101013,#0A0A0D)", boxShadow: "0 30px 70px -25px rgba(0,0,0,.9)", transform: "rotate(1.4deg)" }}>
           <div className="flex items-center justify-between" style={{ padding: "12px 16px", borderBottom: `1px solid ${C.line2}` }}>
             <span style={{ fontSize: 12.5, fontWeight: 600, color: C.tx2 }}>Recruiter Dashboard</span>
             <span style={{ fontFamily: mono, fontSize: 10, color: C.indText, background: "rgba(99,102,241,.12)", padding: "2px 7px", borderRadius: 5 }}>SEARCH</span>
@@ -445,7 +445,7 @@ function Showcase() {
           </div>
         </Link>
         {/* student (front) */}
-        <Link href="/login" className="absolute overflow-hidden" style={{ bottom: 0, left: 0, width: 540, border: "1px solid rgba(99,102,241,.22)", borderRadius: 16, background: "linear-gradient(180deg,#101015,#0A0A0D)", boxShadow: "0 40px 90px -30px rgba(0,0,0,.95),0 0 60px -30px rgba(99,102,241,.4)", transform: "rotate(-1.2deg)" }}>
+        <Link href="/connect" className="absolute overflow-hidden" style={{ bottom: 0, left: 0, width: 540, border: "1px solid rgba(99,102,241,.22)", borderRadius: 16, background: "linear-gradient(180deg,#101015,#0A0A0D)", boxShadow: "0 40px 90px -30px rgba(0,0,0,.95),0 0 60px -30px rgba(99,102,241,.4)", transform: "rotate(-1.2deg)" }}>
           <div className="flex items-center justify-between" style={{ padding: "12px 16px", borderBottom: `1px solid ${C.line2}` }}>
             <span style={{ fontSize: 12.5, fontWeight: 600 }}>Student Dashboard · Developer DNA</span>
             <span style={{ width: 7, height: 7, borderRadius: 999, background: "#34D399" }} />
@@ -486,11 +486,11 @@ function Showcase() {
       </div>
       {/* mobile fallback */}
       <div className="grid gap-4 md:hidden">
-        <Link href="/login" className="rounded-2xl p-5" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+        <Link href="/connect" className="rounded-2xl p-5" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
           <p style={{ fontSize: 13, fontWeight: 600 }}>Student Dashboard · Developer DNA</p>
           <p style={{ fontSize: 30, fontFamily: mono, fontWeight: 700, color: C.indText }}>847</p>
         </Link>
-        <Link href="/login" className="rounded-2xl p-5" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
+        <Link href="/connect" className="rounded-2xl p-5" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
           <p style={{ fontSize: 13, fontWeight: 600, color: C.tx2 }}>Recruiter Dashboard</p>
           <p style={{ fontSize: 12, color: C.tx3 }}>Search verified talent by proven skill.</p>
         </Link>
@@ -592,7 +592,7 @@ function FinalCta() {
           Connect your GitHub and watch your Engineering DNA build itself in under a minute.
         </p>
         <div className="relative flex items-center justify-center gap-3">
-          <Link href="/login" style={{ fontSize: 15, fontWeight: 600, color: "#fff", background: "linear-gradient(140deg,#6366F1,#7C5CF6)", padding: "14px 24px", borderRadius: 12, boxShadow: "0 8px 28px rgba(99,102,241,.4)" }}>
+          <Link href="/connect" style={{ fontSize: 15, fontWeight: 600, color: "#fff", background: "linear-gradient(140deg,#6366F1,#7C5CF6)", padding: "14px 24px", borderRadius: 12, boxShadow: "0 8px 28px rgba(99,102,241,.4)" }}>
             Create Your Engineering DNA
           </Link>
           <a href="#" style={{ fontSize: 15, fontWeight: 600, color: "#fff", background: "rgba(255,255,255,.04)", border: `1px solid ${C.line}`, padding: "14px 22px", borderRadius: 12 }}>
