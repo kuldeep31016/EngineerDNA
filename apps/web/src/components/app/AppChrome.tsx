@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "./Sidebar";
 
 // Routes that render without the app sidebar (their own full-page chrome).
-const BARE_ROUTES = new Set(["/", "/login", "/unauthorized"]);
+const BARE_ROUTES = new Set(["/", "/login", "/connect", "/unauthorized"]);
 
 /**
  * Decides the page chrome: marketing/auth pages render bare; everything else
