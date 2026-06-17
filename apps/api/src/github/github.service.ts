@@ -110,6 +110,16 @@ export class GithubService {
     return rows.map(GithubService.toContract);
   }
 
+  /** A single imported repository the caller owns. */
+  async getRepository(user: User, repoId: string): Promise<Repository> {
+    const account = await this.requireAccount(user.id);
+    const repo = await this.prisma.repository.findUnique({ where: { id: repoId } });
+    if (!repo || repo.githubAccountId !== account.id) {
+      throw new NotFoundException("Repository not found");
+    }
+    return GithubService.toContract(repo);
+  }
+
   async setSelection(user: User, repoId: string, selected: boolean): Promise<Repository> {
     const account = await this.requireAccount(user.id);
     const repo = await this.prisma.repository.findUnique({ where: { id: repoId } });
