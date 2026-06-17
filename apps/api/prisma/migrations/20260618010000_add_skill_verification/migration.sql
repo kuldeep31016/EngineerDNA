@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Skill" ADD COLUMN     "confidence" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "verifiedAt" TIMESTAMP(3);
+
