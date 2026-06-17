@@ -31,6 +31,9 @@ export function Navbar() {
               <Link href="/repositories" className="text-muted-foreground hover:text-foreground">
                 Repositories
               </Link>
+              <Link href="/evidence" className="text-muted-foreground hover:text-foreground">
+                Evidence
+              </Link>
               <Link href="/profile" className="text-muted-foreground hover:text-foreground">
                 {user?.name ?? "Profile"}
               </Link>
