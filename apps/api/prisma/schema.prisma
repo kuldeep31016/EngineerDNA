@@ -49,10 +49,50 @@ model User {
 
   refreshTokens RefreshToken[]
   profile       Profile?
+  githubAccount GithubAccount?
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
   @@index([email])
+}
+
+/// A connected GitHub account (separate from login). Holds the OAuth access
+/// token (stored ENCRYPTED at rest) used to import repositories.
+model GithubAccount {
+  id           String       @id @default(uuid()) @db.Uuid
+  userId       String       @unique @db.Uuid
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  githubUserId String
+  githubLogin  String
+  accessToken  String // encrypted (AES-256-GCM)
+  scope        String?
+  connectedAt  DateTime     @default(now())
+  repositories Repository[]
+}
+
+/// A repository imported from GitHub. The user picks which ones EngineerDNA
+/// may analyze later via `selectedForAnalysis`.
+model Repository {
+  id                  String        @id @default(uuid()) @db.Uuid
+  githubAccountId     String        @db.Uuid
+  account             GithubAccount @relation(fields: [githubAccountId], references: [id], onDelete: Cascade)
+  githubId            String
+  name                String
+  fullName            String
+  description         String?
+  language            String?
+  stars               Int           @default(0)
+  forks               Int           @default(0)
+  isPrivate           Boolean       @default(false)
+  htmlUrl             String
+  defaultBranch       String?
+  pushedAt            DateTime?
+  selectedForAnalysis Boolean       @default(false)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  @@unique([githubAccountId, githubId])
+  @@index([githubAccountId])
 }
 
 /// The Engineering Passport — a developer's verified identity. One per user.
