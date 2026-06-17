@@ -22,6 +22,6 @@ import { TokenCipherService } from "../common/security/token-cipher.service";
   ],
   controllers: [GithubAuthController, GithubController],
   providers: [GithubService, GithubApiService, TokenCipherService],
-  exports: [GithubService],
+  exports: [GithubService, GithubApiService, TokenCipherService],
 })
 export class GithubModule {}
