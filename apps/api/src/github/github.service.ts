@@ -82,6 +82,7 @@ export class GithubService {
             htmlUrl: r.html_url,
             defaultBranch: r.default_branch,
             pushedAt: r.pushed_at ? new Date(r.pushed_at) : null,
+            repoCreatedAt: r.created_at ? new Date(r.created_at) : null,
           },
           update: {
             name: r.name,
@@ -92,6 +93,7 @@ export class GithubService {
             forks: r.forks_count,
             isPrivate: r.private,
             pushedAt: r.pushed_at ? new Date(r.pushed_at) : null,
+            repoCreatedAt: r.created_at ? new Date(r.created_at) : null,
           },
         }),
       ),
