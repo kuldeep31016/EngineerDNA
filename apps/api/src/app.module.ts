@@ -4,6 +4,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { HealthModule } from "./health/health.module";
 import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
+import { ProfileModule } from "./profile/profile.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -16,6 +17,7 @@ import { AuthModule } from "./auth/auth.module";
     HealthModule,
     UsersModule,
     AuthModule,
+    ProfileModule,
   ],
 })
 export class AppModule {}
