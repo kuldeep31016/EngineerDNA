@@ -2,43 +2,59 @@
 @tailwind components;
 @tailwind utilities;
 
-/* shadcn/ui design tokens. Light + dark themes via CSS variables. */
+/* EngineerDNA design tokens — dark, zinc base with an indigo→violet brand. */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-    --radius: 0.65rem;
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 7% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 7% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 6% 11%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 6% 11%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 6% 14%;
+    --accent-foreground: 0 0% 98%;
+    --border: 240 6% 16%;
+    --input: 240 6% 16%;
+    --ring: 243 75% 59%;
+    --radius: 0.75rem;
+
+    --font-sans: "Satoshi", "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+    /* Brand + accents (raw, for gradients and chart-like UI). */
+    --brand-from: #6366f1;
+    --brand-to: #8b5cf6;
+    --accent-blue: #3b82f6;
+    --accent-violet: #8b5cf6;
+    --accent-green: #34d399;
+    --accent-orange: #fb923c;
   }
 
+  /* The app is dark-only; .dark mirrors :root so html.dark stays consistent. */
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 98%;
-    --card: 222 47% 9%;
-    --card-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 224 76% 60%;
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 7% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 7% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 6% 11%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 6% 11%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 6% 14%;
+    --accent-foreground: 0 0% 98%;
+    --border: 240 6% 16%;
+    --input: 240 6% 16%;
+    --ring: 243 75% 59%;
   }
 }
 
@@ -48,5 +64,26 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-feature-settings: "ss01", "cv01";
+  }
+  ::selection {
+    background: rgba(99, 102, 241, 0.35);
+    color: #fff;
+  }
+}
+
+@layer utilities {
+  /* Indigo→violet gradient text used for brand accents in headings. */
+  .text-brand-gradient {
+    background-image: linear-gradient(135deg, var(--brand-from), var(--brand-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-brand {
+    background-image: linear-gradient(140deg, var(--brand-from), var(--brand-to));
+  }
+  .font-mono {
+    font-family: var(--font-mono), ui-monospace, monospace;
   }
 }
