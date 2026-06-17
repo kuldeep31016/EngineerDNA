@@ -13,6 +13,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.0",
     "@engineerdna/shared": "workspace:*",
     "@nestjs/common": "^10.4.4",
     "@nestjs/config": "^3.2.3",
@@ -30,7 +31,8 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.5",
