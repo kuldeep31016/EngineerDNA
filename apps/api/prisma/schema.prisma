@@ -23,6 +23,15 @@ enum AuthProvider {
   GOOGLE
 }
 
+/// Verification lifecycle for a skill. Self-added skills start CLAIMED; later
+/// modules move them to VERIFIED (with evidence) or REFUTED.
+enum SkillStatus {
+  CLAIMED
+  VERIFYING
+  VERIFIED
+  REFUTED
+}
+
 /// A platform user. Created automatically on first OAuth login.
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -39,10 +48,55 @@ model User {
   lastLogin    DateTime?
 
   refreshTokens RefreshToken[]
+  profile       Profile?
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
   @@index([email])
+}
+
+/// The Engineering Passport — a developer's verified identity. One per user.
+/// Rich content sections are stored as JSON; skills are relational because
+/// they carry the verification lifecycle that later modules act on.
+model Profile {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @unique @db.Uuid
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline           String?
+  about              String?
+  location           String?
+  websiteUrl         String?
+  githubUsername     String?
+  leetcodeUsername   String?
+  codeforcesUsername String?
+  openToWork         Boolean  @default(false)
+  isPublic           Boolean  @default(false)
+  education          Json     @default("[]")
+  experience         Json     @default("[]")
+  projects           Json     @default("[]")
+  achievements       Json     @default("[]")
+  certifications     Json     @default("[]")
+  socialLinks        Json     @default("[]")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  skills Skill[]
+}
+
+/// A skill on a passport. Self-added skills are CLAIMED until evidence verifies
+/// them in a later module.
+model Skill {
+  id        String      @id @default(uuid()) @db.Uuid
+  profileId String      @db.Uuid
+  profile   Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name      String
+  category  String?
+  status    SkillStatus @default(CLAIMED)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([profileId, name])
+  @@index([profileId])
 }
 
 /// Opaque refresh tokens, stored hashed. One row per issued token so we can
