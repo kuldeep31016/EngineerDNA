@@ -7,6 +7,8 @@ import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
 import { ProfileModule } from "./profile/profile.module";
 import { GithubModule } from "./github/github.module";
+import { LlmModule } from "./llm/llm.module";
+import { AnalysisModule } from "./analysis/analysis.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -21,11 +23,13 @@ import { GithubModule } from "./github/github.module";
       envFilePath: [join(process.cwd(), ".env"), join(process.cwd(), "..", "..", ".env")],
     }),
     PrismaModule,
+    LlmModule,
     HealthModule,
     UsersModule,
     AuthModule,
     ProfileModule,
     GithubModule,
+    AnalysisModule,
   ],
 })
 export class AppModule {}
