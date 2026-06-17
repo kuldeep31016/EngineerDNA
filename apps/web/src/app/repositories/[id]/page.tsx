@@ -11,6 +11,7 @@ import {
   Database,
   FlaskConical,
   FolderTree,
+  Gauge,
   GitFork,
   Github,
   Lightbulb,
@@ -27,15 +28,18 @@ import {
 import type {
   AnalysisReport,
   ComplexityLevel,
+  ProjectIntelligence,
   Repository,
   RepositoryAnalysis,
   RepoEvidenceItem,
+  Score,
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { Button } from "@/components/ui/button";
 import { getAnalysis, getRepository, startAnalysis } from "@/services/analysis";
 import { buildRepoEvidence, getRepoEvidence } from "@/services/evidence";
+import { getIntelligence } from "@/services/intelligence";
 
 const COMPLEXITY: Record<ComplexityLevel, { label: string; className: string }> = {
   beginner: { label: "Beginner", className: "bg-sky-500/10 text-sky-400 ring-sky-500/20" },
@@ -130,6 +134,7 @@ function ReportContent() {
       </div>
 
       <div className="mt-6 space-y-4">
+        <ReportCard repoId={id} />
         <EvidencePanel repoId={id} />
         {!analysis && <EmptyState />}
         {isRunning && <RunningState />}
@@ -137,6 +142,100 @@ function ReportContent() {
         {done && <ReportView report={analysis!.report!} model={analysis!.model} updatedAt={analysis!.updatedAt} />}
       </div>
     </main>
+  );
+}
+
+function ReportCard({ repoId }: { repoId: string }) {
+  const [data, setData] = useState<ProjectIntelligence | null>(null);
+
+  useEffect(() => {
+    void getIntelligence(repoId)
+      .then(setData)
+      .catch(() => setData(null));
+  }, [repoId]);
+
+  if (!data || !data.available) return null;
+
+  const lvlColor =
+    data.overall.level === "Excellent"
+      ? "text-emerald-400"
+      : data.overall.level === "Good"
+        ? "text-sky-400"
+        : data.overall.level === "Fair"
+          ? "text-amber-400"
+          : "text-muted-foreground";
+
+  return (
+    <Panel className="p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <SectionHead icon={Gauge} title="Report Card" />
+        <div className="text-right">
+          <div className="text-2xl font-bold">
+            {data.overall.value}
+            <span className="text-sm text-muted-foreground">/100</span>
+          </div>
+          <div className={`text-xs font-medium ${lvlColor}`}>{data.overall.level}</div>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {data.verdicts.map((v) => (
+          <span
+            key={v.label}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ring-1 ${
+              v.positive
+                ? "bg-emerald-500/10 text-emerald-400 ring-emerald-500/20"
+                : "bg-amber-500/10 text-amber-400 ring-amber-500/20"
+            }`}
+          >
+            <span className="opacity-70">{v.label}:</span> {v.value}
+          </span>
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {data.dimensions.map((d) => (
+          <DimensionBar key={d.key} score={d} />
+        ))}
+      </div>
+
+      {data.improvements.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Path to industry-ready</p>
+          <ul className="space-y-1.5">
+            {data.improvements.map((imp, i) => (
+              <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                <span className="leading-relaxed">{imp}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function DimensionBar({ score }: { score: Score }) {
+  const color =
+    score.value >= 80
+      ? "bg-emerald-500"
+      : score.value >= 60
+        ? "bg-sky-500"
+        : score.value >= 35
+          ? "bg-amber-500"
+          : "bg-muted-foreground/40";
+  return (
+    <div title={score.reasoning}>
+      <div className="mb-1 flex items-center justify-between text-xs">
+        <span>{score.label}</span>
+        <span className="font-medium tabular-nums">{score.value}</span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${score.value}%` }} />
+      </div>
+      <p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">{score.reasoning}</p>
+    </div>
   );
 }
 
