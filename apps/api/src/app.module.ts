@@ -6,6 +6,7 @@ import { HealthModule } from "./health/health.module";
 import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
 import { ProfileModule } from "./profile/profile.module";
+import { GithubModule } from "./github/github.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -24,6 +25,7 @@ import { ProfileModule } from "./profile/profile.module";
     UsersModule,
     AuthModule,
     ProfileModule,
+    GithubModule,
   ],
 })
 export class AppModule {}
