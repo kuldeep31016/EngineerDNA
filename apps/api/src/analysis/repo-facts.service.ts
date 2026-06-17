@@ -38,6 +38,7 @@ const MANIFEST_FILES = new Set([
   "vercel.json",
   "netlify.toml",
   "procfile",
+  "schema.prisma",
 ]);
 
 const MAX_FILE_PATHS = 250;
