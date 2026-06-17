@@ -36,6 +36,12 @@ export class GithubController {
     return this.githubService.listRepositories(user);
   }
 
+  /** GET /api/github/repositories/:id — a single imported repository. */
+  @Get("repositories/:id")
+  getOne(@CurrentUser() user: User, @Param("id") id: string): Promise<Repository> {
+    return this.githubService.getRepository(user, id);
+  }
+
   /** PATCH /api/github/repositories/:id — select/deselect for analysis. */
   @Patch("repositories/:id")
   setSelection(
