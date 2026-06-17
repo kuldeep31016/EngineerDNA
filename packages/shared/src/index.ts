@@ -17,3 +17,5 @@ export * from "./contracts/github";
 export * from "./contracts/analysis";
 export * from "./contracts/evidence";
 export * from "./contracts/verification";
+export * from "./contracts/score";
+export * from "./contracts/dna";
