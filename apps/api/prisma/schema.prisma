@@ -1,0 +1,59 @@
+// EngineerDNA — Prisma schema (Module 2: Authentication & User Management).
+// PostgreSQL is the canonical relational store. Neo4j (added later) is a
+// projection. Only auth/user tables exist at this stage — feature tables are
+// added by their owning modules.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  RECRUITER
+  ADMIN
+}
+
+enum AuthProvider {
+  GITHUB
+  GOOGLE
+}
+
+/// A platform user. Created automatically on first OAuth login.
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  email        String       @unique
+  name         String?
+  profileImage String?
+  role         Role         @default(STUDENT)
+  provider     AuthProvider
+  providerId   String
+  // Email verification is structure-only for now (OAuth emails are trusted).
+  isVerified   Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  lastLogin    DateTime?
+
+  refreshTokens RefreshToken[]
+
+  // A provider account maps to exactly one user.
+  @@unique([provider, providerId])
+  @@index([email])
+}
+
+/// Opaque refresh tokens, stored hashed. One row per issued token so we can
+/// rotate (delete-on-use) and revoke individual sessions.
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
