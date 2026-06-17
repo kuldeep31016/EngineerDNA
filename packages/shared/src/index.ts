@@ -14,3 +14,4 @@ export * from "./contracts/health";
 export * from "./contracts/auth";
 export * from "./contracts/profile";
 export * from "./contracts/github";
+export * from "./contracts/analysis";
