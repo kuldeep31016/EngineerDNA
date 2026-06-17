@@ -65,7 +65,14 @@ export default function LandingPage() {
 
 /* ---------------- NAV ---------------- */
 function Nav() {
-  const links = ["Product", "Features", "Students", "Recruiters", "Pricing", "Resources"];
+  const links: { label: string; href: string }[] = [
+    { label: "Product", href: "#how" },
+    { label: "Features", href: "#features" },
+    { label: "Students", href: "/dashboard" },
+    { label: "Recruiters", href: "#showcase" },
+    { label: "Pricing", href: "#" },
+    { label: "Resources", href: "#" },
+  ];
   return (
     <nav
       className="fixed inset-x-0 top-0 z-50 flex items-center justify-between"
@@ -82,15 +89,27 @@ function Nav() {
           <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-.02em" }}>EngineerDNA</span>
         </Link>
         <div className="hidden items-center gap-1 lg:flex">
-          {links.map((l) => (
-            <span
-              key={l}
-              className="cursor-pointer rounded-lg px-3 py-2 transition-colors hover:bg-white/5"
-              style={{ fontSize: 13.5, color: C.tx2 }}
-            >
-              {l}
-            </span>
-          ))}
+          {links.map((l) =>
+            l.href.startsWith("#") ? (
+              <a
+                key={l.label}
+                href={l.href}
+                className="cursor-pointer rounded-lg px-3 py-2 transition-colors hover:bg-white/5"
+                style={{ fontSize: 13.5, color: C.tx2 }}
+              >
+                {l.label}
+              </a>
+            ) : (
+              <Link
+                key={l.label}
+                href={l.href}
+                className="cursor-pointer rounded-lg px-3 py-2 transition-colors hover:bg-white/5"
+                style={{ fontSize: 13.5, color: C.tx2 }}
+              >
+                {l.label}
+              </Link>
+            ),
+          )}
         </div>
       </div>
       <div className="flex items-center gap-3">
@@ -391,7 +410,7 @@ function Features() {
     { t: "Recruiter Dashboard", d: "Search verified talent by proven skill, not keywords.", bg: "rgba(99,102,241,.12)" },
   ];
   return (
-    <section className="mx-auto max-w-[1180px]" style={{ padding: "70px 40px" }}>
+    <section id="features" className="mx-auto max-w-[1180px] scroll-mt-20" style={{ padding: "70px 40px" }}>
       <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Eyebrow>PLATFORM</Eyebrow>
@@ -419,7 +438,7 @@ function Features() {
 /* ---------------- SHOWCASE ---------------- */
 function Showcase() {
   return (
-    <section className="mx-auto max-w-[1180px] overflow-hidden" style={{ padding: "70px 40px 90px" }}>
+    <section id="showcase" className="mx-auto max-w-[1180px] overflow-hidden scroll-mt-20" style={{ padding: "70px 40px 90px" }}>
       <div className="text-center" style={{ marginBottom: 46 }}>
         <Eyebrow>THE PRODUCT</Eyebrow>
         <H2>One platform. Two sides of hiring.</H2>
