@@ -16,6 +16,7 @@ import {
   addSkill as addSkillRequest,
   removeSkill as removeSkillRequest,
 } from "@/services/profile";
+import { verifySkills } from "@/services/verification";
 
 // Cast helper: the generic section editor works in plain string records.
 type Rec = Record<string, string>;
@@ -58,6 +59,7 @@ function PassportContent() {
         skills={profile.skills}
         onAdd={async (name) => setProfile(await addSkillRequest({ name }))}
         onRemove={async (id) => setProfile(await removeSkillRequest(id))}
+        onVerify={async () => (await verifySkills()).skills}
       />
 
       <EditableListSection
