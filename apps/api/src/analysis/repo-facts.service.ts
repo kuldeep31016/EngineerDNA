@@ -40,10 +40,26 @@ const MANIFEST_FILES = new Set([
   "procfile",
 ]);
 
-const MAX_FILE_PATHS = 400;
+const MAX_FILE_PATHS = 250;
 const MAX_MANIFESTS = 8;
 const MAX_MANIFEST_CHARS = 4000;
 const MAX_README_CHARS = 6000;
+
+// Noise that wastes tokens without helping the model understand the project.
+const NOISE_PATTERNS: RegExp[] = [
+  /^node_modules\//,
+  /^\.git\//,
+  /^dist\//,
+  /^build\//,
+  /^\.next\//,
+  /^out\//,
+  /^coverage\//,
+  /^vendor\//,
+  /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|composer\.lock|cargo\.lock)$/i,
+  /\.(png|jpe?g|gif|svg|ico|webp|bmp|mp3|mp4|wav|woff2?|ttf|eot|pdf|map|min\.js|min\.css)$/i,
+];
+
+const isNoise = (path: string): boolean => NOISE_PATTERNS.some((re) => re.test(path));
 
 @Injectable()
 export class RepoFactsService {
@@ -52,11 +68,14 @@ export class RepoFactsService {
   /** Gather facts for a repo using a connected GitHub access token. */
   async gather(token: string, repo: Repository): Promise<RepoFacts> {
     const branch = repo.defaultBranch ?? "main";
-    const [languages, filePaths, readme] = await Promise.all([
+    const [languages, rawPaths, readme] = await Promise.all([
       this.github.getLanguages(token, repo.fullName),
       this.github.getFileTree(token, repo.fullName, branch),
       this.github.getReadme(token, repo.fullName),
     ]);
+
+    // Drop noise (lock files, build output, binaries) to keep the prompt lean.
+    const filePaths = rawPaths.filter((p) => !isNoise(p));
 
     // Pick the manifest files that actually exist, then fetch their contents.
     const manifestPaths = filePaths
