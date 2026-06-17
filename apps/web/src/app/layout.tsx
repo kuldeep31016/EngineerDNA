@@ -18,11 +18,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body>
-        {/* React hoists these stylesheet links into <head>. */}
+        {/* React hoists these global stylesheet links into <head>. */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap"
           rel="stylesheet"
         />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
           rel="stylesheet"
