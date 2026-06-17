@@ -32,6 +32,16 @@ export type SkillStatus = (typeof SkillStatus)[keyof typeof SkillStatus];
 export const skillStatusSchema = z.nativeEnum(SkillStatus);
 
 /**
+ * OAuth identity providers a user can authenticate with.
+ */
+export const AuthProvider = {
+  GITHUB: "GITHUB",
+  GOOGLE: "GOOGLE",
+} as const;
+export type AuthProvider = (typeof AuthProvider)[keyof typeof AuthProvider];
+export const authProviderSchema = z.nativeEnum(AuthProvider);
+
+/**
  * Evidence sources. The evidence substrate is source-typed from day one so
  * non-repository signals (interviews, learning progress, open source) can be
  * first-class evidence later without forking the truth layer.
