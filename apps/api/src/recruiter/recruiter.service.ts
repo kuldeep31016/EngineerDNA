@@ -1,0 +1,200 @@
+import { Injectable, NotFoundException } from "@nestjs/common";
+import type { Profile, User } from "@prisma/client";
+import type {
+  CandidateProfile,
+  CandidateSearchResult,
+  CandidateSummary,
+  DeveloperEvidenceItem,
+  SearchCandidatesInput,
+} from "@engineerdna/shared";
+import { PrismaService } from "../prisma/prisma.service";
+import { EvidenceService } from "../evidence/evidence.service";
+import { computeDnaScores } from "../dna/dna-scorer";
+
+type ProfileWithUser = Profile & { user: Pick<User, "id" | "name" | "profileImage"> };
+
+@Injectable()
+export class RecruiterService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly evidence: EvidenceService,
+  ) {}
+
+  /** Search public candidates by required skills (matched against USED evidence). */
+  async search(recruiter: User, input: SearchCandidatesInput): Promise<CandidateSearchResult> {
+    const profiles = await this.publicProfiles();
+    const shortlisted = await this.shortlistedIds(recruiter.id);
+    const querySkills = (input.skills ?? []).map((s) => s.trim()).filter(Boolean);
+
+    const candidates: CandidateSummary[] = [];
+    for (const profile of profiles) {
+      const summary = await this.buildSummary(profile, querySkills, shortlisted);
+      if (!summary) continue;
+      if (querySkills.length > 0 && summary.matchedSkills.length === 0) continue;
+      if (input.minOverall != null && summary.overall < input.minOverall) continue;
+      candidates.push(summary);
+    }
+
+    candidates.sort(
+      (a, b) =>
+        b.matchedSkills.length - a.matchedSkills.length ||
+        b.matchScore - a.matchScore ||
+        b.overall - a.overall,
+    );
+
+    return { candidates, total: candidates.length };
+  }
+
+  /** A candidate's full VERIFIED profile — public repos and evidence only. */
+  async getCandidate(recruiter: User, candidateId: string): Promise<CandidateProfile> {
+    const profile = await this.prisma.profile.findFirst({
+      where: { userId: candidateId, isPublic: true },
+      include: { user: { select: { id: true, name: true, profileImage: true } } },
+    });
+    if (!profile) throw new NotFoundException("Candidate not found");
+
+    const items = await this.evidence.getPublicEvidenceItems(candidateId);
+    const { scores, overall, topStrengths } = computeDnaScores(items);
+    const used = items.filter((i) => i.strength === "USED");
+
+    const repos = await this.prisma.repository.findMany({
+      where: { account: { userId: candidateId }, isPrivate: false },
+      orderBy: [{ stars: "desc" }, { pushedAt: "desc" }],
+      take: 6,
+      select: { name: true, description: true, language: true, stars: true, htmlUrl: true },
+    });
+
+    const shortlisted = await this.shortlistedIds(recruiter.id);
+
+    return {
+      ...summaryFields(profile, overall, topStrengths, used, [], overall, shortlisted.has(candidateId)),
+      scores,
+      verifiedSkills: used
+        .map((u) => ({ technology: u.technology, category: u.category, repositoryCount: u.repositoryCount }))
+        .sort((a, b) => b.repositoryCount - a.repositoryCount)
+        .slice(0, 40),
+      topRepos: repos.map((r) => ({
+        name: r.name,
+        description: r.description,
+        language: r.language,
+        stars: r.stars,
+        htmlUrl: r.htmlUrl,
+      })),
+    };
+  }
+
+  /** The recruiter's shortlisted candidates. */
+  async listShortlist(recruiter: User): Promise<CandidateSearchResult> {
+    const rows = await this.prisma.shortlist.findMany({
+      where: { recruiterId: recruiter.id },
+      orderBy: { createdAt: "desc" },
+    });
+    const ids = new Set(rows.map((r) => r.candidateId));
+    if (ids.size === 0) return { candidates: [], total: 0 };
+
+    const profiles = (await this.publicProfiles()).filter((p) => ids.has(p.userId));
+    const candidates: CandidateSummary[] = [];
+    for (const profile of profiles) {
+      const summary = await this.buildSummary(profile, [], ids);
+      if (summary) candidates.push(summary);
+    }
+    return { candidates, total: candidates.length };
+  }
+
+  async addShortlist(recruiter: User, candidateId: string): Promise<void> {
+    const exists = await this.prisma.profile.findFirst({
+      where: { userId: candidateId, isPublic: true },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException("Candidate not found");
+    await this.prisma.shortlist.upsert({
+      where: { recruiterId_candidateId: { recruiterId: recruiter.id, candidateId } },
+      create: { recruiterId: recruiter.id, candidateId },
+      update: {},
+    });
+  }
+
+  async removeShortlist(recruiter: User, candidateId: string): Promise<void> {
+    await this.prisma.shortlist.deleteMany({
+      where: { recruiterId: recruiter.id, candidateId },
+    });
+  }
+
+  private async publicProfiles(): Promise<ProfileWithUser[]> {
+    return this.prisma.profile.findMany({
+      where: { isPublic: true },
+      include: { user: { select: { id: true, name: true, profileImage: true } } },
+    });
+  }
+
+  private async shortlistedIds(recruiterId: string): Promise<Set<string>> {
+    const rows = await this.prisma.shortlist.findMany({
+      where: { recruiterId },
+      select: { candidateId: true },
+    });
+    return new Set(rows.map((r) => r.candidateId));
+  }
+
+  private async buildSummary(
+    profile: ProfileWithUser,
+    querySkills: string[],
+    shortlisted: Set<string>,
+  ): Promise<CandidateSummary | null> {
+    const items = await this.evidence.getPublicEvidenceItems(profile.userId);
+    const used = items.filter((i) => i.strength === "USED");
+    if (used.length === 0) return null;
+
+    const matched = matchSkills(querySkills, used);
+    const { overall, topStrengths } = computeDnaScores(items);
+    const matchScore = querySkills.length > 0 ? Math.round((matched.length / querySkills.length) * 100) : overall;
+    return summaryFields(profile, overall, topStrengths, used, matched, matchScore, shortlisted.has(profile.userId));
+  }
+}
+
+/** Shared summary fields used by both the list and the detail view. */
+function summaryFields(
+  profile: ProfileWithUser,
+  overall: number,
+  topStrengths: string[],
+  used: DeveloperEvidenceItem[],
+  matched: string[],
+  matchScore: number,
+  shortlisted: boolean,
+): CandidateSummary {
+  const publicRepoCount = new Set(used.flatMap((u) => u.repositories)).size;
+  return {
+    id: profile.userId,
+    name: profile.user.name ?? "Engineer",
+    headline: profile.headline ?? null,
+    location: profile.location ?? null,
+    profileImage: profile.user.profileImage ?? null,
+    overall,
+    topStrengths,
+    verifiedSkillCount: used.length,
+    matchedSkills: matched,
+    matchScore,
+    publicRepoCount,
+    shortlisted,
+  };
+}
+
+function norm(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\.js$/i, "")
+    .replace(/[^a-z0-9+#]/g, "");
+}
+
+/** Which of the queried skills the candidate has real USED evidence for. */
+function matchSkills(querySkills: string[], used: DeveloperEvidenceItem[]): string[] {
+  if (querySkills.length === 0) return [];
+  const techs = used.map((u) => norm(u.technology));
+  const matched: string[] = [];
+  for (const skill of querySkills) {
+    const q = norm(skill);
+    if (!q) continue;
+    const hit = techs.some((t) => t === q || (q.length >= 3 && (t.includes(q) || q.includes(t))));
+    if (hit) matched.push(skill);
+  }
+  return matched;
+}
