@@ -21,6 +21,7 @@ import { RecruiterModule } from "./recruiter/recruiter.module";
 import { TimelineModule } from "./timeline/timeline.module";
 import { OssModule } from "./oss/oss.module";
 import { PortfolioModule } from "./portfolio/portfolio.module";
+import { ReputationModule } from "./reputation/reputation.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -54,6 +55,7 @@ import { PortfolioModule } from "./portfolio/portfolio.module";
     TimelineModule,
     OssModule,
     PortfolioModule,
+    ReputationModule,
   ],
 })
 export class AppModule {}
