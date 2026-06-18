@@ -47,6 +47,14 @@ export function planById(id: string): PlanDef | undefined {
   return PLANS.find((p) => p.id === id);
 }
 
+/** Resolve a plan from an order amount in paise (prices are distinct). */
+export function planByAmount(amountPaise: number): PlanDef | undefined {
+  return PLANS.find((p) => p.price * 100 === amountPaise);
+}
+
+/** Tier order for upgrade/downgrade comparisons. */
+export const PLAN_RANK: Record<PlanTier, number> = { starter: 1, professional: 2, business: 3 };
+
 export const subscriptionStatusSchema = z.enum(["active", "inactive", "expired"]);
 export type SubscriptionStatus = z.infer<typeof subscriptionStatusSchema>;
 
@@ -57,9 +65,43 @@ export const recruiterSubscriptionSchema = z.object({
   status: subscriptionStatusSchema,
   jobPostLimit: z.number(),
   jobPostsUsed: z.number(),
+  amount: z.number(),
+  currency: z.string(),
+  startedAt: z.string().nullable(),
   expiresAt: z.string().nullable(),
 });
 export type RecruiterSubscription = z.infer<typeof recruiterSubscriptionSchema>;
+
+/** A row in the billing history table. */
+export const billingItemSchema = z.object({
+  invoiceNumber: z.string(),
+  plan: z.string(),
+  amount: z.number(), // paise
+  currency: z.string(),
+  status: z.string(),
+  purchasedOn: z.string(),
+  expiresOn: z.string(),
+  paymentMethod: z.string(),
+});
+export type BillingItem = z.infer<typeof billingItemSchema>;
+
+/** Full invoice detail for /recruiter/billing/:invoiceId. */
+export const invoiceDetailSchema = z.object({
+  invoiceNumber: z.string(),
+  recruiterName: z.string(),
+  company: z.string().nullable(),
+  plan: z.string(),
+  razorpayPaymentId: z.string().nullable(),
+  razorpayOrderId: z.string(),
+  amount: z.number(),
+  currency: z.string(),
+  gst: z.number(),
+  purchaseDate: z.string(),
+  expiryDate: z.string(),
+  status: z.string(),
+  paymentMethod: z.string(),
+});
+export type InvoiceDetail = z.infer<typeof invoiceDetailSchema>;
 
 /** Body for creating a Razorpay order. */
 export const createOrderRequestSchema = z.object({ plan: planTierSchema });
