@@ -126,6 +126,8 @@ model User {
   shortlistedBy Shortlist[]     @relation("CandidateShortlistedBy")
   recruiterProfile RecruiterProfile?
   jobs          JobPost[]       @relation("RecruiterJobs")
+  subscription  RecruiterSubscription?
+  payments      Payment[]
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -256,6 +258,44 @@ model JobPost {
   updatedAt   DateTime    @updatedAt
 
   @@index([recruiterId])
+}
+
+/// A recruiter's paid subscription. One per user. Access to recruiter features
+/// requires an active (non-expired) subscription. Created only after a verified
+/// Razorpay payment.
+model RecruiterSubscription {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @unique @db.Uuid
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan              String
+  status            String    @default("inactive")
+  jobPostLimit      Int       @default(0)
+  jobPostsUsed      Int       @default(0)
+  amount            Int       @default(0)
+  currency          String    @default("INR")
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  createdAt         DateTime  @default(now())
+  expiresAt         DateTime?
+  updatedAt         DateTime  @updatedAt
+}
+
+/// A payment record. Created when an order is placed; marked paid only after the
+/// Razorpay signature is verified on the backend.
+model Payment {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String
+  paymentId String?
+  signature String?
+  amount    Int
+  status    String   @default("created")
+  provider  String   @default("razorpay")
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([orderId])
 }
 
 /// Company details for a recruiter account (Module 14 — role-based access).
