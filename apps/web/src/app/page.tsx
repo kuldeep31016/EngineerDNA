@@ -69,7 +69,7 @@ function Nav() {
     { label: "Product", href: "#how" },
     { label: "Features", href: "#features" },
     { label: "Students", href: "/dashboard" },
-    { label: "Recruiters", href: "#showcase" },
+    { label: "Recruiters", href: "/recruiter/login" },
     { label: "Pricing", href: "#" },
     { label: "Resources", href: "#" },
   ];
