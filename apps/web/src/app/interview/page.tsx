@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
   ClipboardList,
   FileText,
   Gauge,
+  Github,
   Loader2,
   Mic,
   MicOff,
@@ -26,7 +28,6 @@ import {
 import {
   INTERVIEW_ROLES,
   type Interview,
-  type InterviewAnswer,
   type InterviewListItem,
   type InterviewRole,
   type StartInterviewInput,
@@ -36,14 +37,18 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { cancelSpeech, speak } from "@/lib/speech";
 import { extractPdfText } from "@/lib/resume";
+import { getGithubStatus } from "@/services/github";
 import {
   getInterview,
+  gradeInterview,
   listInterviews,
   startInterview,
-  submitAnswers,
+  submitTurn,
 } from "@/services/interview";
 
 type Phase = "setup" | "live" | "report";
+
+const TOTAL_QUESTIONS = 6;
 
 function scoreColor(v: number): string {
   if (v >= 75) return "text-emerald-400";
@@ -64,17 +69,23 @@ function roleLabel(role: string | null): string {
 
 function InterviewContent() {
   const { user } = useAuth();
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("setup");
   const [history, setHistory] = useState<InterviewListItem[]>([]);
   const [current, setCurrent] = useState<Interview | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [busy, setBusy] = useState<null | "start" | "grade">(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [githubConnected, setGithubConnected] = useState<boolean | null>(null);
+  const [pendingInput, setPendingInput] = useState<StartInterviewInput | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const refreshHistory = () => listInterviews().then(setHistory).catch(() => {});
   useEffect(() => {
     void refreshHistory();
+    getGithubStatus()
+      .then((s) => setGithubConnected(s.connected))
+      .catch(() => setGithubConnected(false));
   }, []);
 
   const stopStream = useCallback(() => {
@@ -83,7 +94,6 @@ function InterviewContent() {
     setStream(null);
   }, []);
 
-  // Always release the camera/mic and stop speech when leaving the page.
   useEffect(
     () => () => {
       cancelSpeech();
@@ -92,12 +102,21 @@ function InterviewContent() {
     [],
   );
 
-  async function handleStart(input: StartInterviewInput) {
-    setBusy("start");
+  // Clicking "Start" recommends connecting GitHub once (non-blocking) when it
+  // isn't connected — otherwise it begins immediately.
+  function requestStart(input: StartInterviewInput) {
     setError(null);
+    if (githubConnected === false) {
+      setPendingInput(input);
+      return;
+    }
+    void actuallyStart(input);
+  }
 
-    // Ask for camera + mic up front (also covers the mic that speech-to-text
-    // needs). If denied, the interview still runs without video.
+  async function actuallyStart(input: StartInterviewInput) {
+    setPendingInput(null);
+    setBusy(true);
+
     let media: MediaStream | null = null;
     try {
       media = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -119,29 +138,18 @@ function InterviewContent() {
     } catch {
       media?.getTracks().forEach((t) => t.stop());
       setError(
-        "Couldn't generate the interview. Make sure the analysis model is configured (ANTHROPIC_API_KEY), then try again.",
+        "Couldn't start the interview. Make sure the analysis model is configured (ANTHROPIC_API_KEY), then try again.",
       );
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
-  async function handleFinish(answers: InterviewAnswer[]) {
-    if (!current) return;
-    setBusy("grade");
-    setError(null);
-    cancelSpeech();
-    try {
-      const graded = await submitAnswers(current.id, answers);
-      setCurrent(graded);
-      setPhase("report");
-      void refreshHistory();
-    } catch {
-      setError("Couldn't grade the interview. Please try again.");
-    } finally {
-      stopStream();
-      setBusy(null);
-    }
+  function handleComplete(graded: Interview) {
+    setCurrent(graded);
+    setPhase("report");
+    stopStream();
+    void refreshHistory();
   }
 
   function leave() {
@@ -192,21 +200,67 @@ function InterviewContent() {
       )}
 
       {phase === "setup" && (
-        <Setup
-          defaultName={user?.name ?? ""}
-          busy={busy === "start"}
-          history={history}
-          onStart={handleStart}
-          onOpen={openPast}
-        />
+        <Setup defaultName={user?.name ?? ""} busy={busy} history={history} onStart={requestStart} onOpen={openPast} />
       )}
 
       {phase === "live" && current && (
-        <Live interview={current} stream={stream} grading={busy === "grade"} onFinish={handleFinish} />
+        <Live interview={current} stream={stream} onComplete={handleComplete} />
       )}
 
       {phase === "report" && current && current.report && <Report interview={current} onDone={leave} />}
+
+      {pendingInput && (
+        <RepoTipModal
+          onConnect={() => router.push("/repositories")}
+          onStartAnyway={() => actuallyStart(pendingInput)}
+          onClose={() => setPendingInput(null)}
+        />
+      )}
     </main>
+  );
+}
+
+/* ---------------- Repo recommendation (non-blocking) ---------------- */
+
+function RepoTipModal({
+  onConnect,
+  onStartAnyway,
+  onClose,
+}: {
+  onConnect: () => void;
+  onStartAnyway: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <Github className="h-5 w-5" />
+        </span>
+        <h3 className="mt-3 text-lg font-semibold">Want sharper questions?</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Connect your GitHub and we&apos;ll ground the interview in your real projects and verified skills. It&apos;s
+          optional — you can start right now without it.
+        </p>
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+          <button
+            onClick={onConnect}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            <Github className="h-4 w-4" /> Connect repositories
+          </button>
+          <button
+            onClick={onStartAnyway}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
+          >
+            Start anyway
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -274,9 +328,7 @@ function Setup({
     <div className="mt-6 space-y-4">
       <div className="rounded-2xl border border-border bg-gradient-to-br from-primary/5 via-card to-card p-6">
         <h2 className="text-lg font-semibold">Set up your interview</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pick a role, add your resume if you like, and start.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Pick a role, add your resume if you like, and start.</p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Field label="Your name">
@@ -425,7 +477,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/* ---------------- Live interview ---------------- */
+/* ---------------- Live interview (turn by turn) ---------------- */
 
 const DIFF_BADGE: Record<string, string> = {
   easy: "bg-emerald-500/15 text-emerald-300",
@@ -434,27 +486,26 @@ const DIFF_BADGE: Record<string, string> = {
 };
 
 function Live({
-  interview,
+  interview: initial,
   stream,
-  grading,
-  onFinish,
+  onComplete,
 }: {
   interview: Interview;
   stream: MediaStream | null;
-  grading: boolean;
-  onFinish: (answers: InterviewAnswer[]) => void;
+  onComplete: (graded: Interview) => void;
 }) {
+  const [interview, setInterview] = useState<Interview>(initial);
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [speaking, setSpeaking] = useState(false);
+  const [working, setWorking] = useState<null | "thinking" | "grading">(null);
+  const [err, setErr] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const stt = useSpeechRecognition();
 
-  const total = interview.questions.length;
   const q = interview.questions[idx]!;
-  const isLast = idx === total - 1;
+  const isFinalQuestion = interview.questions.length >= TOTAL_QUESTIONS && idx === interview.questions.length - 1;
 
-  // Attach the webcam stream to the self-view.
   useEffect(() => {
     if (videoRef.current && stream) videoRef.current.srcObject = stream;
   }, [stream]);
@@ -488,46 +539,55 @@ function Live({
     }
   }
 
-  function go(next: number) {
+  async function next() {
     stt.stop();
     cancelSpeech();
-    setIdx(next);
+    setErr(null);
+    setWorking("thinking");
+    try {
+      const res = await submitTurn(interview.id, (answers[q.id] ?? "").trim());
+      if (res.done) {
+        setWorking("grading");
+        const graded = await gradeInterview(interview.id);
+        onComplete(graded);
+        return;
+      }
+      setInterview(res.interview);
+      setIdx(res.interview.questions.length - 1);
+      setWorking(null);
+    } catch {
+      setErr("Something went wrong — please try again.");
+      setWorking(null);
+    }
   }
 
-  function finish() {
-    stt.stop();
-    cancelSpeech();
-    const payload = interview.questions.map((qq) => ({
-      questionId: qq.id,
-      answer: (answers[qq.id] ?? "").trim(),
-    }));
-    onFinish(payload);
-  }
-
-  const answeredCount = interview.questions.filter((qq) => (answers[qq.id] ?? "").trim()).length;
+  const answeredCount = Object.values(answers).filter((a) => a.trim()).length;
+  const progress = Math.min((idx + 1) / TOTAL_QUESTIONS, 1) * 100;
 
   return (
     <div className="mt-6 space-y-4">
-      {/* Progress */}
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">
-          Question {idx + 1} <span className="text-muted-foreground">of {total}</span>
+          Question {idx + 1} <span className="text-muted-foreground">of {TOTAL_QUESTIONS}</span>
         </span>
         <span className="text-xs text-muted-foreground">
-          {roleLabel(interview.role)} · {answeredCount}/{total} answered
+          {roleLabel(interview.role)} · {answeredCount} answered
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${((idx + 1) / total) * 100}%` }} />
+        <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${progress}%` }} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {/* AI interviewer */}
         <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card p-6 text-center">
-          <Orb speaking={speaking} />
+          <Orb speaking={speaking} thinking={working === "thinking"} />
           <p className="mt-4 text-xs uppercase tracking-widest text-muted-foreground">AI Interviewer</p>
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-primary">
-            {speaking ? (
+            {working === "thinking" ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Thinking…
+              </>
+            ) : speaking ? (
               <>
                 <Volume2 className="h-3.5 w-3.5" /> Speaking…
               </>
@@ -541,7 +601,6 @@ function Live({
           </p>
         </div>
 
-        {/* Candidate self-view */}
         <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black/60">
           <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
           {!stream && (
@@ -553,7 +612,6 @@ function Live({
         </div>
       </div>
 
-      {/* Question + answer */}
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="mb-2 flex items-center gap-2">
           <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${DIFF_BADGE[q.difficulty]}`}>
@@ -572,17 +630,20 @@ function Live({
         <textarea
           value={answers[q.id] ?? ""}
           onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-          readOnly={stt.listening}
+          readOnly={stt.listening || working !== null}
           rows={4}
           placeholder={stt.supported ? "Tap the mic and answer out loud, or type here…" : "Type your answer here…"}
           className="mt-3 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary/60 read-only:opacity-80"
         />
 
+        {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {stt.supported ? (
             <button
               onClick={toggleRecord}
-              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
+              disabled={working !== null}
+              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
                 stt.listening
                   ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30"
                   : "bg-brand text-white hover:opacity-90"
@@ -604,50 +665,42 @@ function Live({
             </span>
           )}
 
-          <div className="ml-auto flex items-center gap-2">
-            {idx > 0 && (
-              <button
-                onClick={() => go(idx - 1)}
-                className="rounded-lg border border-border px-3.5 py-2 text-sm font-medium transition-colors hover:bg-accent"
-              >
-                Previous
-              </button>
-            )}
-            {!isLast ? (
-              <button
-                onClick={() => go(idx + 1)}
-                className="rounded-lg bg-brand px-3.5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-              >
-                Next question
-              </button>
+          <button
+            onClick={next}
+            disabled={working !== null}
+            className={`ml-auto inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${
+              isFinalQuestion ? "bg-emerald-600" : "bg-brand"
+            }`}
+          >
+            {working === "thinking" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Next question…
+              </>
+            ) : working === "grading" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Grading…
+              </>
+            ) : isFinalQuestion ? (
+              <>
+                <PhoneOff className="h-4 w-4" /> Finish &amp; get report
+              </>
             ) : (
-              <button
-                onClick={finish}
-                disabled={grading}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-              >
-                {grading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> Grading…
-                  </>
-                ) : (
-                  <>
-                    <PhoneOff className="h-4 w-4" /> Finish &amp; get report
-                  </>
-                )}
-              </button>
+              <>
+                Next question
+              </>
             )}
-          </div>
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function Orb({ speaking }: { speaking: boolean }) {
+function Orb({ speaking, thinking }: { speaking: boolean; thinking: boolean }) {
+  const active = speaking || thinking;
   return (
     <div className="relative flex h-28 w-28 items-center justify-center">
-      {speaking && (
+      {active && (
         <>
           <span className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
           <span className="absolute inset-2 animate-pulse rounded-full bg-primary/20" />
@@ -655,7 +708,7 @@ function Orb({ speaking }: { speaking: boolean }) {
       )}
       <span
         className={`relative h-20 w-20 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg shadow-primary/30 transition-transform ${
-          speaking ? "scale-110" : "scale-100"
+          active ? "scale-110" : "scale-100"
         }`}
       />
     </div>
