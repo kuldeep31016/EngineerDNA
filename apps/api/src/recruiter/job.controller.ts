@@ -6,9 +6,11 @@ import {
   type CandidateSearchResult,
   type CreateJobInput,
   type JobPost,
+  type RankingResult,
   type UpdateJobInput,
 } from "@engineerdna/shared";
 import { JobService } from "./job.service";
+import { RankingService } from "./ranking.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
@@ -20,7 +22,10 @@ import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles("RECRUITER", "ADMIN")
 export class JobController {
-  constructor(private readonly jobs: JobService) {}
+  constructor(
+    private readonly jobs: JobService,
+    private readonly ranking: RankingService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: User): Promise<JobPost[]> {
@@ -38,6 +43,12 @@ export class JobController {
   @Get(":id/matches")
   matches(@CurrentUser() user: User, @Param("id") id: string): Promise<CandidateSearchResult> {
     return this.jobs.matches(user, id);
+  }
+
+  /** GET /api/recruiter/jobs/:id/ranking — candidates ranked, with reasons. */
+  @Get(":id/ranking")
+  getRanking(@CurrentUser() user: User, @Param("id") id: string): Promise<RankingResult> {
+    return this.ranking.rankForJob(user, id);
   }
 
   @Get(":id")
