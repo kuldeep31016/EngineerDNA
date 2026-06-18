@@ -11,4 +11,10 @@ export class HealthController {
   getHealth(): HealthResponse {
     return this.healthService.getHealth();
   }
+
+  /** GET /api/health/ready — readiness probe (checks the database). */
+  @Get("ready")
+  getReadiness() {
+    return this.healthService.getReadiness();
+  }
 }
