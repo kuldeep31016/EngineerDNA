@@ -1,13 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Eye, Globe, Loader2, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import {
+  Code2,
+  Download,
+  ExternalLink,
+  Eye,
+  FileText,
+  Globe,
+  Image as ImageIcon,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import { PORTFOLIO_THEMES, type PortfolioData, type PortfolioTheme } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { extractResumeFile } from "@/lib/resume";
 import { extractPortfolio, getPortfolio, updatePortfolio } from "@/services/portfolio";
 import { renderPortfolioHtml } from "@/components/portfolio/render";
+import { downloadHtml, downloadJson, downloadPng, printToPdf, safeFileName } from "@/lib/export";
 
 const SWATCH: Record<PortfolioTheme, string> = {
   modern: "linear-gradient(135deg,#9A6B3C,#7A5228)",
@@ -97,13 +112,16 @@ function PortfolioContent() {
           <h1 className="text-3xl font-bold tracking-tight">Portfolio</h1>
           <p className="text-sm text-muted-foreground">Upload your resume — get a shareable portfolio site.</p>
         </div>
-        {available && (
-          <button
-            onClick={() => setPreview((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <Eye className="h-3.5 w-3.5" /> {preview ? "Hide" : "Preview"}
-          </button>
+        {available && data && (
+          <div className="flex items-center gap-2">
+            <ExportMenu html={previewHtml} data={data} defaultName={slug || safeFileName(data.personal.name)} />
+            <button
+              onClick={() => setPreview((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Eye className="h-3.5 w-3.5" /> {preview ? "Hide" : "Preview"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -133,6 +151,89 @@ function PortfolioContent() {
         />
       )}
     </main>
+  );
+}
+
+/* ---------------- Export menu (all client-side, no API) ---------------- */
+
+function ExportMenu({ html, data, defaultName }: { html: string; data: PortfolioData; defaultName: string }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(defaultName || "portfolio");
+  const [pngBusy, setPngBusy] = useState(false);
+  const fn = safeFileName(name);
+
+  const close = () => setOpen(false);
+
+  async function png() {
+    setPngBusy(true);
+    try {
+      await downloadPng(fn, html);
+    } finally {
+      setPngBusy(false);
+      close();
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+      >
+        <Download className="h-3.5 w-3.5" /> Export
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={close} />
+          <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-border bg-card p-3 shadow-xl">
+            <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">File name</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="portfolio"
+              className="mb-3 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary/60"
+            />
+            <div className="space-y-1">
+              <ExportRow icon={Code2} label="HTML (code)" sub={`${fn}.html`} onClick={() => { downloadHtml(fn, html); close(); }} />
+              <ExportRow icon={FileText} label="PDF" sub="opens print → Save as PDF" onClick={() => { printToPdf(html); close(); }} />
+              <ExportRow icon={ImageIcon} label="PNG image" sub={pngBusy ? "rendering…" : `${fn}.png`} onClick={png} busy={pngBusy} />
+              <ExportRow icon={Download} label="JSON data" sub="backup / re-import" onClick={() => { downloadJson(fn, data); close(); }} />
+            </div>
+            <p className="mt-3 border-t border-border pt-2 text-[11px] text-muted-foreground">
+              Generated in your browser — free, no AI.
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ExportRow({
+  icon: Icon,
+  label,
+  sub,
+  onClick,
+  busy,
+}: {
+  icon: typeof Download;
+  label: string;
+  sub: string;
+  onClick: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-accent disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" /> : <Icon className="h-4 w-4 shrink-0 text-primary" />}
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="block truncate text-xs text-muted-foreground">{sub}</span>
+      </span>
+    </button>
   );
 }
 
