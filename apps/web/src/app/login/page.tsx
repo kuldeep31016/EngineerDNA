@@ -7,15 +7,16 @@ import { X } from "lucide-react";
 import { APP_NAME, APP_TAGLINE } from "@engineerdna/shared";
 import { useAuthStore } from "@/store/auth";
 import { OAuthButton } from "@/components/auth/OAuthButton";
+import { homeFor } from "@/lib/roles";
 
 export default function LoginPage() {
   const router = useRouter();
-  const status = useAuthStore((s) => s.status);
+  const { user, status } = useAuthStore();
 
-  // Already signed in? Skip the login screen.
+  // Already signed in? Skip the login screen (to the right home for the role).
   useEffect(() => {
-    if (status === "authenticated") router.replace("/dashboard");
-  }, [status, router]);
+    if (status === "authenticated") router.replace(homeFor(user?.role));
+  }, [status, user, router]);
 
   return (
     <main className="flex min-h-[80vh] items-center justify-center px-6">
@@ -40,6 +41,12 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-xs text-muted-foreground">
           We use your account only to sign you in. Repository access is requested
           later, and only with your permission.
+        </p>
+        <p className="mt-4 border-t border-border pt-4 text-center text-xs text-muted-foreground">
+          Hiring engineers?{" "}
+          <Link href="/recruiter/login" className="font-medium text-primary hover:underline">
+            Recruiter sign in
+          </Link>
         </p>
       </div>
     </main>
