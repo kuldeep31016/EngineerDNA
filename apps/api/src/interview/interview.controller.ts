@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import type { User } from "@prisma/client";
 import {
+  startInterviewRequestSchema,
   submitAnswersRequestSchema,
   type Interview,
   type InterviewListItem,
+  type StartInterviewInput,
   type StartInterviewResult,
   type SubmitAnswersInput,
 } from "@engineerdna/shared";
@@ -18,10 +20,13 @@ import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 export class InterviewController {
   constructor(private readonly interview: InterviewService) {}
 
-  /** POST /api/interview/start — generate a personalized interview. */
+  /** POST /api/interview/start — generate a personalized interview for a role. */
   @Post("start")
-  start(@CurrentUser() user: User): Promise<StartInterviewResult> {
-    return this.interview.startInterview(user);
+  start(
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(startInterviewRequestSchema)) body: StartInterviewInput,
+  ): Promise<StartInterviewResult> {
+    return this.interview.startInterview(user, body);
   }
 
   /** GET /api/interview — past interviews (history / improvement over time). */
