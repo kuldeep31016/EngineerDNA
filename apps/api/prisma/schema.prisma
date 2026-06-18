@@ -96,6 +96,7 @@ model User {
   githubAccount GithubAccount?
   evidence      TechEvidence[]
   interviews    Interview[]
+  resumeReview  ResumeReview?
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -207,6 +208,21 @@ model Interview {
   evaluatedAt  DateTime?
 
   @@index([userId])
+}
+
+/// The latest AI resume review for a user (Module 12). One per user — a new
+/// review replaces the old one. The structured report is stored as JSON.
+model ResumeReview {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeText       String
+  atsScore         Int
+  engineeringScore Int
+  report           Json
+  model            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 /// The Engineering Passport — a developer's verified identity. One per user.
