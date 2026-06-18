@@ -10,6 +10,7 @@ import {
   FolderGit2,
   LayoutDashboard,
   LogOut,
+  Map,
   MessagesSquare,
   ScrollText,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const NAV = [
   { href: "/career", label: "Career Intelligence", icon: Compass },
   { href: "/interview", label: "Interview Prep", icon: MessagesSquare },
   { href: "/resume", label: "Resume Review", icon: FileText },
+  { href: "/roadmap", label: "Learning Roadmap", icon: Map },
   { href: "/profile", label: "Passport", icon: ScrollText },
 ];
 
