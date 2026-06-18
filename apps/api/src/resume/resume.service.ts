@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import type { Prisma, ResumeReview as ResumeReviewRow, User } from "@prisma/client";
 import { z } from "zod";
@@ -36,36 +37,42 @@ export class ResumeService {
     private readonly anthropic: AnthropicService,
   ) {}
 
-  /** Review a resume against the candidate's evidence and DNA. One LLM call. */
+  /**
+   * Review a resume against the candidate's evidence and DNA. Cost guard: if the
+   * resume, the evidence, and the model are all unchanged since the last review,
+   * the stored review is reused and NO LLM call is made.
+   */
   async reviewResume(user: User, input: ReviewResumeInput): Promise<ResumeReview> {
-    const [evidence, dna] = await Promise.all([
-      this.evidence.getDeveloperEvidence(user),
-      this.dna.getDna(user),
-    ]);
+    // Evidence is cheap (one query) and is part of the cache key, so fetch it
+    // first and short-circuit before paying for the model.
+    const evidence = await this.evidence.getDeveloperEvidence(user);
+    const inputHash = hashInputs(input.resumeText, evidence);
 
+    const existing = await this.prisma.resumeReview.findUnique({ where: { userId: user.id } });
+    if (existing && existing.model === this.anthropic.model && existing.inputHash === inputHash) {
+      return toContract(existing);
+    }
+
+    const dna = await this.dna.getDna(user);
     const body = await this.anthropic.generateObject<ReviewBody>({
       schema: reviewBodySchema,
       system: SYSTEM,
       prompt: buildPrompt(input.resumeText, evidence, dna),
     });
 
+    const data = {
+      resumeText: input.resumeText,
+      inputHash,
+      atsScore: clamp(body.atsScore),
+      engineeringScore: clamp(body.engineeringScore),
+      report: body as unknown as Prisma.InputJsonValue,
+      model: this.anthropic.model,
+    };
+
     const row = await this.prisma.resumeReview.upsert({
       where: { userId: user.id },
-      create: {
-        userId: user.id,
-        resumeText: input.resumeText,
-        atsScore: clamp(body.atsScore),
-        engineeringScore: clamp(body.engineeringScore),
-        report: body as unknown as Prisma.InputJsonValue,
-        model: this.anthropic.model,
-      },
-      update: {
-        resumeText: input.resumeText,
-        atsScore: clamp(body.atsScore),
-        engineeringScore: clamp(body.engineeringScore),
-        report: body as unknown as Prisma.InputJsonValue,
-        model: this.anthropic.model,
-      },
+      create: { userId: user.id, ...data },
+      update: data,
     });
 
     return toContract(row);
@@ -80,6 +87,24 @@ export class ResumeService {
 
 function clamp(n: number): number {
   return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+/** A deterministic fingerprint of the evidence that grounds a review. */
+function evidenceSignature(evidence: DeveloperEvidence): string {
+  return evidence.items
+    .map((i) => `${i.strength}:${i.technology.toLowerCase()}`)
+    .sort()
+    .join("|");
+}
+
+/** Cache key over the inputs that actually change a review's result. */
+function hashInputs(resumeText: string, evidence: DeveloperEvidence): string {
+  const normalized = resumeText.trim().replace(/\s+/g, " ").toLowerCase();
+  return createHash("sha256")
+    .update(normalized)
+    .update("::")
+    .update(evidenceSignature(evidence))
+    .digest("hex");
 }
 
 function emptyReview(): ResumeReview {
