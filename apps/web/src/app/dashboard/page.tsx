@@ -358,7 +358,7 @@ function insightsFrom(dna: DeveloperDna, verifiedCount: number): string[] {
 
 export default function DashboardPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute roles={["STUDENT", "ADMIN"]}>
       <DashboardContent />
     </ProtectedRoute>
   );
