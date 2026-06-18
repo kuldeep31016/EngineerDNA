@@ -121,6 +121,7 @@ model User {
   resumeReview  ResumeReview?
   roadmap       LearningRoadmap?
   ossRecommendation OssRecommendation?
+  portfolio     Portfolio?
   shortlists    Shortlist[]     @relation("RecruiterShortlists")
   shortlistedBy Shortlist[]     @relation("CandidateShortlistedBy")
   recruiterProfile RecruiterProfile?
@@ -297,6 +298,22 @@ model ResumeReview {
   model            String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+/// A generated portfolio (Module 18). One per user. The extracted JSON (data)
+/// is the single source the themed components render; the LLM fills it once from
+/// the resume (sourceHash caches that), then the user edits are stored here.
+model Portfolio {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @unique @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data       Json
+  theme      String   @default("modern")
+  published  Boolean  @default(false)
+  slug       String?  @unique
+  sourceHash String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 /// Cached open-source recommendations for a user (Module 17). Rebuilt when the
