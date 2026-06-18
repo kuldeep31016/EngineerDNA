@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Award,
   BadgeCheck,
+  Bot,
   Compass,
   Dna,
   FileText,
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/evidence", label: "Evidence", icon: BadgeCheck },
   { href: "/timeline", label: "Timeline", icon: History },
   { href: "/career", label: "Career Intelligence", icon: Compass },
+  { href: "/copilot", label: "Career Copilot", icon: Bot },
   { href: "/interview", label: "Interview Prep", icon: MessagesSquare },
   { href: "/resume", label: "Resume Review", icon: FileText },
   { href: "/roadmap", label: "Learning Roadmap", icon: Map },
