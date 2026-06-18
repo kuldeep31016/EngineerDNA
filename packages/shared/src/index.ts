@@ -26,3 +26,4 @@ export * from "./contracts/resume";
 export * from "./contracts/roadmap";
 export * from "./contracts/recruiter";
 export * from "./contracts/job";
+export * from "./contracts/ranking";
