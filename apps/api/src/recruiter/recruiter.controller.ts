@@ -8,15 +8,13 @@ import {
 } from "@engineerdna/shared";
 import { RecruiterService } from "./recruiter.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { Roles } from "../auth/decorators/roles.decorator";
+import { RecruiterSubscriptionGuard } from "../payments/recruiter-subscription.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 
-/** Recruiter Dashboard (Module 14). Recruiter/Admin only. */
+/** Recruiter Dashboard (Module 14). Requires an active recruiter subscription. */
 @Controller("recruiter")
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles("RECRUITER", "ADMIN")
+@UseGuards(JwtAuthGuard, RecruiterSubscriptionGuard)
 export class RecruiterController {
   constructor(private readonly recruiter: RecruiterService) {}
 
