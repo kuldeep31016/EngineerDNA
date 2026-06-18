@@ -35,7 +35,13 @@ import {
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { cancelSpeech, speak } from "@/lib/speech";
+import {
+  cancelSpeech,
+  isSpeechSynthesisSupported,
+  listEnglishVoices,
+  pickPreferredVoice,
+  speak,
+} from "@/lib/speech";
 import { extractPdfText } from "@/lib/resume";
 import { getGithubStatus } from "@/services/github";
 import {
@@ -500,23 +506,50 @@ function Live({
   const [speaking, setSpeaking] = useState(false);
   const [working, setWorking] = useState<null | "thinking" | "grading">(null);
   const [err, setErr] = useState<string | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceURI, setVoiceURI] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const stt = useSpeechRecognition();
 
   const q = interview.questions[idx]!;
   const isFinalQuestion = interview.questions.length >= TOTAL_QUESTIONS && idx === interview.questions.length - 1;
+  const selectedVoice = voices.find((v) => v.voiceURI === voiceURI) ?? null;
 
   useEffect(() => {
     if (videoRef.current && stream) videoRef.current.srcObject = stream;
   }, [stream]);
 
+  // Load the available voices (they arrive asynchronously in some browsers).
+  useEffect(() => {
+    if (!isSpeechSynthesisSupported()) return;
+    const update = () => {
+      const list = listEnglishVoices();
+      setVoices(list);
+      setVoiceURI((prev) => prev || (pickPreferredVoice(list)?.voiceURI ?? ""));
+    };
+    update();
+    window.speechSynthesis.addEventListener("voiceschanged", update);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", update);
+  }, []);
+
   // Speak each question as it appears.
   useEffect(() => {
     setSpeaking(true);
-    speak(q.prompt, { onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) });
+    speak(q.prompt, { voice: selectedVoice, onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) });
     return () => cancelSpeech();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
+
+  function changeVoice(uri: string) {
+    setVoiceURI(uri);
+    const voice = voices.find((v) => v.voiceURI === uri) ?? null;
+    setSpeaking(true);
+    speak("Hi, I'll be your interviewer today.", {
+      voice,
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+    });
+  }
 
   // Mirror the live transcript into the current answer while recording.
   useEffect(() => {
@@ -526,7 +559,7 @@ function Live({
 
   function repeat() {
     setSpeaking(true);
-    speak(q.prompt, { onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) });
+    speak(q.prompt, { voice: selectedVoice, onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) });
   }
 
   function toggleRecord() {
@@ -599,6 +632,20 @@ function Live({
               <>Ready</>
             )}
           </p>
+          {voices.length > 0 && (
+            <select
+              value={voiceURI}
+              onChange={(e) => changeVoice(e.target.value)}
+              title="Interviewer voice"
+              className="mt-3 max-w-[12rem] truncate rounded-lg border border-border bg-background px-2 py-1 text-xs text-muted-foreground outline-none transition-colors focus:border-primary/60"
+            >
+              {voices.map((v) => (
+                <option key={v.voiceURI} value={v.voiceURI}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black/60">
