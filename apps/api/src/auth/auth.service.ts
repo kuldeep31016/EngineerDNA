@@ -28,8 +28,14 @@ export class AuthService {
   ) {}
 
   /** First login creates the account; every login refreshes profile + lastLogin. */
-  loginWithOAuth(profile: OAuthProfileInput): Promise<User> {
-    return this.users.upsertFromOAuth(profile);
+  async loginWithOAuth(profile: OAuthProfileInput): Promise<User> {
+    const user = await this.users.upsertFromOAuth(profile);
+    // OAuth accounts are always students — recruiters sign up with email/password.
+    // Self-heal any account that was mistakenly elevated to recruiter.
+    if (user.role === "RECRUITER") {
+      return this.users.updateRole(user.id, "STUDENT");
+    }
+    return user;
   }
 
   /** Register a recruiter (email + password + company). Throws if email taken. */
