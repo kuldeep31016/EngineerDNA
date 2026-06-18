@@ -21,6 +21,53 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data: { role } });
   }
 
+  findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { email } });
+  }
+
+  /** Company name for a recruiter account (null for students / no profile). */
+  async findCompanyName(userId: string): Promise<string | null> {
+    const profile = await this.prisma.recruiterProfile.findUnique({
+      where: { userId },
+      select: { companyName: true },
+    });
+    return profile?.companyName ?? null;
+  }
+
+  /** Create a recruiter account (CREDENTIALS) with its company profile. */
+  async createRecruiter(input: {
+    email: string;
+    name: string;
+    passwordHash: string;
+    companyName: string;
+    companyWebsite?: string;
+    title?: string;
+  }): Promise<User> {
+    return this.prisma.user.create({
+      data: {
+        email: input.email,
+        name: input.name,
+        provider: "CREDENTIALS",
+        providerId: input.email,
+        passwordHash: input.passwordHash,
+        role: "RECRUITER",
+        isVerified: true,
+        lastLogin: new Date(),
+        recruiterProfile: {
+          create: {
+            companyName: input.companyName,
+            companyWebsite: input.companyWebsite ?? null,
+            title: input.title ?? null,
+          },
+        },
+      },
+    });
+  }
+
+  markLogin(id: string): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { lastLogin: new Date() } });
+  }
+
   findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
   }
@@ -58,7 +105,7 @@ export class UsersService {
   }
 
   /** Map a DB user to the client-safe shape (no secrets, dates as ISO). */
-  static toAuthUser(user: User): AuthUser {
+  static toAuthUser(user: User, companyName: string | null = null): AuthUser {
     return {
       id: user.id,
       email: user.email,
@@ -67,6 +114,7 @@ export class UsersService {
       role: user.role,
       provider: user.provider,
       isVerified: user.isVerified,
+      companyName,
       createdAt: user.createdAt.toISOString(),
       lastLogin: user.lastLogin ? user.lastLogin.toISOString() : null,
     };
