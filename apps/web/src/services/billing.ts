@@ -1,8 +1,12 @@
 import {
+  billingItemSchema,
   createOrderResponseSchema,
+  invoiceDetailSchema,
   recruiterSubscriptionSchema,
+  type BillingItem,
   type CreateOrderInput,
   type CreateOrderResponse,
+  type InvoiceDetail,
   type RecruiterSubscription,
   type VerifyPaymentInput,
 } from "@engineerdna/shared";
@@ -25,4 +29,15 @@ export async function verifyPayment(input: VerifyPaymentInput): Promise<Recruite
 /** GET — the recruiter's current subscription. */
 export async function getSubscription(): Promise<RecruiterSubscription> {
   return recruiterSubscriptionSchema.parse(await apiFetch<unknown>("/recruiter/subscription"));
+}
+
+/** GET — the recruiter's invoice history (newest first). */
+export async function getBilling(): Promise<BillingItem[]> {
+  const data = await apiFetch<unknown[]>("/recruiter/billing");
+  return (data ?? []).map((d) => billingItemSchema.parse(d));
+}
+
+/** GET — a single invoice by number. */
+export async function getInvoice(invoiceId: string): Promise<InvoiceDetail> {
+  return invoiceDetailSchema.parse(await apiFetch<unknown>(`/recruiter/billing/${invoiceId}`));
 }
