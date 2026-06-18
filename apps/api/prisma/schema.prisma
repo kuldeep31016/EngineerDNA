@@ -194,6 +194,8 @@ model Interview {
   userId       String          @db.Uuid
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   status       InterviewStatus @default(GENERATED)
+  role         String?
+  candidateName String?
   topics       Json            @default("[]")
   questions    Json            @default("[]")
   answers      Json            @default("[]")
