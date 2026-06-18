@@ -98,6 +98,8 @@ model User {
   interviews    Interview[]
   resumeReview  ResumeReview?
   roadmap       LearningRoadmap?
+  shortlists    Shortlist[]     @relation("RecruiterShortlists")
+  shortlistedBy Shortlist[]     @relation("CandidateShortlistedBy")
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -209,6 +211,20 @@ model Interview {
   evaluatedAt  DateTime?
 
   @@index([userId])
+}
+
+/// A recruiter's shortlist entry for a candidate (Module 14).
+model Shortlist {
+  id          String   @id @default(uuid()) @db.Uuid
+  recruiterId String   @db.Uuid
+  recruiter   User     @relation("RecruiterShortlists", fields: [recruiterId], references: [id], onDelete: Cascade)
+  candidateId String   @db.Uuid
+  candidate   User     @relation("CandidateShortlistedBy", fields: [candidateId], references: [id], onDelete: Cascade)
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@unique([recruiterId, candidateId])
+  @@index([recruiterId])
 }
 
 /// The latest AI resume review for a user (Module 12). One per user — a new
