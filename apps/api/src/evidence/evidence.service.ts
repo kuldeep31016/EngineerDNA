@@ -90,6 +90,32 @@ export class EvidenceService {
       include: { repository: { select: { name: true } } },
     });
 
+    const items = EvidenceService.aggregateItems(rows);
+
+    const timeline: TimelineEntry[] = items
+      .filter((i) => i.strength === "USED" && i.firstSeenAt)
+      .map((i) => ({ technology: i.technology, category: i.category, firstSeenAt: i.firstSeenAt! }))
+      .sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt));
+
+    return { items, timeline };
+  }
+
+  /**
+   * Verified evidence rolled up from a user's PUBLIC repositories only — used by
+   * the recruiter view, which must never expose private repositories.
+   */
+  async getPublicEvidenceItems(userId: string): Promise<DeveloperEvidenceItem[]> {
+    const rows = await this.prisma.techEvidence.findMany({
+      where: { userId, repository: { isPrivate: false } },
+      include: { repository: { select: { name: true } } },
+    });
+    return EvidenceService.aggregateItems(rows);
+  }
+
+  /** Roll up per-repository evidence rows into one item per technology. */
+  private static aggregateItems(
+    rows: (TechEvidence & { repository: { name: string } })[],
+  ): DeveloperEvidenceItem[] {
     const groups = new Map<string, (TechEvidence & { repository: { name: string } })[]>();
     for (const row of rows) {
       const key = row.technology.toLowerCase();
@@ -130,12 +156,7 @@ export class EvidenceService {
       return a.technology.localeCompare(b.technology);
     });
 
-    const timeline: TimelineEntry[] = items
-      .filter((i) => i.strength === "USED" && i.firstSeenAt)
-      .map((i) => ({ technology: i.technology, category: i.category, firstSeenAt: i.firstSeenAt! }))
-      .sort((a, b) => a.firstSeenAt.localeCompare(b.firstSeenAt));
-
-    return { items, timeline };
+    return items;
   }
 
   private async requireOwnedRepo(user: User, repoId: string): Promise<Repository> {
