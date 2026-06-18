@@ -21,6 +21,7 @@ enum Role {
 enum AuthProvider {
   GITHUB
   GOOGLE
+  CREDENTIALS
 }
 
 /// Verification lifecycle for a skill. Self-added skills start CLAIMED; later
@@ -85,6 +86,8 @@ model User {
   role         Role         @default(STUDENT)
   provider     AuthProvider
   providerId   String
+  // Set only for CREDENTIALS (recruiter) accounts; OAuth users have none.
+  passwordHash String?
   // Email verification is structure-only for now (OAuth emails are trusted).
   isVerified   Boolean      @default(false)
   createdAt    DateTime     @default(now())
@@ -100,6 +103,7 @@ model User {
   roadmap       LearningRoadmap?
   shortlists    Shortlist[]     @relation("RecruiterShortlists")
   shortlistedBy Shortlist[]     @relation("CandidateShortlistedBy")
+  recruiterProfile RecruiterProfile?
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -211,6 +215,18 @@ model Interview {
   evaluatedAt  DateTime?
 
   @@index([userId])
+}
+
+/// Company details for a recruiter account (Module 14 — role-based access).
+model RecruiterProfile {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName    String
+  companyWebsite String?
+  title          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 /// A recruiter's shortlist entry for a candidate (Module 14).
