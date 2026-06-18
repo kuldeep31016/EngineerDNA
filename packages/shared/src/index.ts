@@ -28,3 +28,4 @@ export * from "./contracts/recruiter";
 export * from "./contracts/job";
 export * from "./contracts/ranking";
 export * from "./contracts/timeline";
+export * from "./contracts/oss";
