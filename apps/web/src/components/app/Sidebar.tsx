@@ -21,13 +21,11 @@ const NAV = [
   { href: "/dna", label: "Developer DNA", icon: Dna },
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },
   { href: "/evidence", label: "Evidence", icon: BadgeCheck },
+  { href: "/career", label: "Career Intelligence", icon: Compass },
   { href: "/profile", label: "Passport", icon: ScrollText },
 ];
 
-const SOON = [
-  { label: "Career Intelligence", icon: Compass },
-  { label: "Interview Prep", icon: MessagesSquare },
-];
+const SOON = [{ label: "Interview Prep", icon: MessagesSquare }];
 
 export function Sidebar() {
   const pathname = usePathname();
