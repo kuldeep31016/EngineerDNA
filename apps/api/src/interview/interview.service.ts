@@ -8,6 +8,8 @@ import {
   type InterviewListItem,
   type InterviewQuestion,
   type InterviewReport,
+  type InterviewRole,
+  type StartInterviewInput,
   type StartInterviewResult,
   type SubmitAnswersInput,
 } from "@engineerdna/shared";
@@ -16,9 +18,30 @@ import { EvidenceService } from "../evidence/evidence.service";
 import { AnthropicService } from "../llm/anthropic.service";
 import { selectInterviewTopics, type InterviewTopic } from "./interview-topics";
 
-const GEN_SYSTEM = `You are a principal software engineer designing a fair, personalized technical interview from a candidate's VERIFIED engineering evidence.
-Ground every question in what they have actually built — never invent experience they don't have.
-These are software-engineering interviews: system design, trade-offs, debugging, real implementation — NOT competitive-programming puzzles.`;
+const GEN_SYSTEM = `You are a friendly but rigorous technical interviewer conducting a live, spoken mock interview.
+Ground questions in the candidate's chosen role, their resume, and their VERIFIED engineering evidence — never invent experience they don't have.
+Questions are spoken aloud, so keep them natural and conversational. Software-engineering interviews only — design, trade-offs, debugging, real experience — NEVER competitive-programming puzzles.`;
+
+// Human label + focus description per role, used to steer question generation.
+const ROLE_LABELS: Record<InterviewRole, string> = {
+  frontend: "Frontend Developer",
+  backend: "Backend Developer",
+  fullstack: "Full-Stack Developer",
+  cloud: "Cloud / DevOps Engineer",
+  dsa: "DSA / Problem Solving",
+  aiml: "AI / ML Engineer",
+  data: "Data Engineer",
+};
+
+const ROLE_FOCUS: Record<InterviewRole, string> = {
+  frontend: "UI architecture, React/state management, performance, accessibility, CSS, and browser APIs",
+  backend: "API design, databases, authentication, caching, concurrency, and system design",
+  fullstack: "frontend and backend engineering and how they integrate end to end",
+  cloud: "deployment, CI/CD, containers, infrastructure as code, scalability, and observability",
+  dsa: "data structures, algorithms, complexity analysis, and problem-solving approach (spoken, conceptual — not live coding)",
+  aiml: "data pipelines, model training and evaluation, deployment, and MLOps",
+  data: "data pipelines, warehousing, SQL, batch and stream processing, and data modeling",
+};
 
 const EVAL_SYSTEM = `You are an experienced, fair technical interviewer grading a candidate's answers.
 Score strictly but constructively, based ONLY on what the candidate actually wrote. Reward correct engineering reasoning even when phrased simply; penalize vague, wrong, or missing answers.
@@ -45,25 +68,24 @@ export class InterviewService {
   ) {}
 
   /**
-   * Generate a personalized interview from the developer's evidence. One LLM
-   * call (batched) keeps cost to a single request per interview.
+   * Generate a personalized, spoken interview for the chosen role — grounded in
+   * the candidate's resume and their verified evidence. One LLM call (batched)
+   * keeps cost to a single request per interview.
    */
-  async startInterview(user: User): Promise<StartInterviewResult> {
+  async startInterview(user: User, input: StartInterviewInput): Promise<StartInterviewResult> {
     const evidence = await this.evidence.getDeveloperEvidence(user);
     const topics = selectInterviewTopics(evidence.items);
-    if (topics.length === 0) {
-      return {
-        available: false,
-        reason:
-          "Build evidence from your repositories first — your interview is generated from technologies you've actually used.",
-        interview: null,
-      };
-    }
+    const candidateName = input.candidateName?.trim() || user.name || "there";
 
     const generated = await this.anthropic.generateObject({
       schema: generatedQuestionsSchema,
       system: GEN_SYSTEM,
-      prompt: buildGenerationPrompt(topics),
+      prompt: buildGenerationPrompt({
+        role: input.role,
+        candidateName,
+        resumeText: input.resumeText,
+        topics,
+      }),
     });
 
     const questions: InterviewQuestion[] = generated.questions.map((q, i) => ({
@@ -71,11 +93,15 @@ export class InterviewService {
       ...q,
     }));
 
+    const displayTopics = topics.length ? topics.map((t) => t.theme) : [ROLE_LABELS[input.role]];
+
     const row = await this.prisma.interview.create({
       data: {
         userId: user.id,
         status: "GENERATED",
-        topics: topics.map((t) => t.theme),
+        role: input.role,
+        candidateName: input.candidateName?.trim() || user.name || null,
+        topics: displayTopics,
         questions: questions as unknown as Prisma.InputJsonValue,
         answers: [],
         model: this.anthropic.model,
@@ -122,6 +148,7 @@ export class InterviewService {
     return rows.map((r) => ({
       id: r.id,
       status: r.status,
+      role: r.role ?? null,
       topics: (r.topics as string[]) ?? [],
       questionCount: ((r.questions as unknown[]) ?? []).length,
       overallScore: r.overallScore,
@@ -147,6 +174,8 @@ function toContract(row: InterviewRow): Interview {
   return {
     id: row.id,
     status: row.status,
+    role: row.role ?? null,
+    candidateName: row.candidateName ?? null,
     topics: (row.topics as string[]) ?? [],
     questions: (row.questions as unknown as InterviewQuestion[]) ?? [],
     answers: (row.answers as unknown as InterviewAnswer[]) ?? [],
@@ -157,27 +186,35 @@ function toContract(row: InterviewRow): Interview {
   };
 }
 
-/** Ground the question generation in the candidate's evidence-backed topics. */
-function buildGenerationPrompt(topics: InterviewTopic[]): string {
-  const lines = topics.map((t, i) => {
-    const repos = t.repos.slice(0, 4).join(", ");
-    return `${i + 1}. ${t.theme} — proven by ${t.techs.join(", ")} (in ${t.repos.length} repo${
-      t.repos.length === 1 ? "" : "s"
-    }: ${repos})`;
-  });
+/** Ground question generation in the role, the resume, and verified evidence. */
+function buildGenerationPrompt(opts: {
+  role: InterviewRole;
+  candidateName: string;
+  resumeText?: string;
+  topics: InterviewTopic[];
+}): string {
+  const evidenceLines = opts.topics.length
+    ? opts.topics.map((t) => `- ${t.theme} (proven by ${t.techs.join(", ")})`)
+    : ["- (no repository evidence yet — rely on the role and resume)"];
+
+  const resume = opts.resumeText?.trim()
+    ? `\nResume / background the candidate provided:\n"""\n${opts.resumeText.trim().slice(0, 6000)}\n"""\n`
+    : "\n(No resume provided.)\n";
 
   return [
-    "Generate a personalized technical interview for this candidate.",
-    "They have VERIFIED, hands-on experience in these areas (each backed by their real repositories):",
+    `You are interviewing ${opts.candidateName} for a ${ROLE_LABELS[opts.role]} role.`,
+    `Focus area: ${ROLE_FOCUS[opts.role]}.`,
     "",
-    ...lines,
-    "",
-    "Rules:",
-    "- Produce exactly 5 questions, ordered from easier to harder (build up difficulty).",
-    "- Each question must be grounded in ONE of the areas above and reflect the kind of work they've done.",
-    "- Software-engineering questions only (design, trade-offs, debugging, implementation) — no competitive-programming puzzles.",
-    "- 'rationale' explains in one sentence why this question is fair given their evidence.",
-    "- Keep each 'prompt' to 2-4 sentences.",
+    "Their verified hands-on experience (from real repositories):",
+    ...evidenceLines,
+    resume,
+    "Generate the interview as a sequence of spoken questions:",
+    `- Question 1 MUST be a warm spoken intro that greets them by name and asks them to introduce themselves — e.g. "Hi ${opts.candidateName}, welcome! To start, tell me a bit about yourself and what you've been building." Set its topic to "Introduction" and difficulty to "easy".`,
+    "- Then 5 more questions for the role, ordered easy → hard, grounded in the focus area, their evidence, and their resume where relevant.",
+    "- Spoken software-engineering questions (concepts, design, trade-offs, experience) — NOT live coding or competitive-programming puzzles.",
+    "- Keep every 'prompt' natural to say out loud (1-3 sentences).",
+    "- 'rationale' is a short non-spoken note on why the question fits this candidate.",
+    "- Produce 6 questions total (the intro plus 5).",
   ].join("\n");
 }
 
