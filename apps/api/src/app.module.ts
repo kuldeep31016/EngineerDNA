@@ -20,6 +20,7 @@ import { RoadmapModule } from "./roadmap/roadmap.module";
 import { RecruiterModule } from "./recruiter/recruiter.module";
 import { TimelineModule } from "./timeline/timeline.module";
 import { OssModule } from "./oss/oss.module";
+import { PortfolioModule } from "./portfolio/portfolio.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -52,6 +53,7 @@ import { OssModule } from "./oss/oss.module";
     RecruiterModule,
     TimelineModule,
     OssModule,
+    PortfolioModule,
   ],
 })
 export class AppModule {}
