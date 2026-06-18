@@ -1,6 +1,12 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, UseGuards } from "@nestjs/common";
 import type { User } from "@prisma/client";
-import { PLANS, type PlanDef, type RecruiterSubscription } from "@engineerdna/shared";
+import {
+  PLANS,
+  type BillingItem,
+  type InvoiceDetail,
+  type PlanDef,
+  type RecruiterSubscription,
+} from "@engineerdna/shared";
 import { SubscriptionService } from "./subscription.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
@@ -27,5 +33,17 @@ export class SubscriptionController {
   @Get("plans")
   plans(): PlanDef[] {
     return PLANS;
+  }
+
+  /** GET /api/recruiter/billing — the recruiter's invoice history. */
+  @Get("billing")
+  billing(@CurrentUser() user: User): Promise<BillingItem[]> {
+    return this.subscriptions.listBilling(user);
+  }
+
+  /** GET /api/recruiter/billing/:invoiceId — a single invoice. */
+  @Get("billing/:invoiceId")
+  invoice(@CurrentUser() user: User, @Param("invoiceId") invoiceId: string): Promise<InvoiceDetail> {
+    return this.subscriptions.getInvoice(user, invoiceId);
   }
 }
