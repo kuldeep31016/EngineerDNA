@@ -59,6 +59,13 @@ enum EvidenceStrength {
   USED
 }
 
+/// Lifecycle of an AI interview session (Module 11). Questions are GENERATED
+/// first, then EVALUATED once the candidate submits answers.
+enum InterviewStatus {
+  GENERATED
+  EVALUATED
+}
+
 /// Where a piece of evidence came from. Source-typed so non-repo signals
 /// (interviews, learning, open source) can be first-class evidence later.
 enum EvidenceSource {
@@ -88,6 +95,7 @@ model User {
   profile       Profile?
   githubAccount GithubAccount?
   evidence      TechEvidence[]
+  interviews    Interview[]
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -175,6 +183,27 @@ model RepositoryAnalysis {
   error        String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+}
+
+/// An AI interview session (Module 11). Questions are generated from the
+/// developer's verified evidence; answers and the grading report are stored so
+/// history and improvement over time are visible. JSON columns hold the
+/// question/answer/report shapes defined in the shared contract.
+model Interview {
+  id           String          @id @default(uuid()) @db.Uuid
+  userId       String          @db.Uuid
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       InterviewStatus @default(GENERATED)
+  topics       Json            @default("[]")
+  questions    Json            @default("[]")
+  answers      Json            @default("[]")
+  report       Json?
+  overallScore Int?
+  model        String?
+  createdAt    DateTime        @default(now())
+  evaluatedAt  DateTime?
+
+  @@index([userId])
 }
 
 /// The Engineering Passport — a developer's verified identity. One per user.
