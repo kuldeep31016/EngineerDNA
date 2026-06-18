@@ -1,9 +1,11 @@
 import {
   candidateSearchResultSchema,
   jobPostSchema,
+  rankingResultSchema,
   type CandidateSearchResult,
   type CreateJobInput,
   type JobPost,
+  type RankingResult,
   type UpdateJobInput,
 } from "@engineerdna/shared";
 import { apiFetch } from "@/lib/api";
@@ -36,4 +38,14 @@ export async function deleteJob(id: string): Promise<void> {
 /** GET — verified candidates matching a job's required skills. */
 export async function getJobMatches(id: string): Promise<CandidateSearchResult> {
   return candidateSearchResultSchema.parse(await apiFetch<unknown>(`/recruiter/jobs/${id}/matches`));
+}
+
+/** GET — a single job post. */
+export async function getJob(id: string): Promise<JobPost> {
+  return jobPostSchema.parse(await apiFetch<unknown>(`/recruiter/jobs/${id}`));
+}
+
+/** GET — candidates ranked for a job, each with an explainable breakdown. */
+export async function getJobRanking(id: string): Promise<RankingResult> {
+  return rankingResultSchema.parse(await apiFetch<unknown>(`/recruiter/jobs/${id}/ranking`));
 }
