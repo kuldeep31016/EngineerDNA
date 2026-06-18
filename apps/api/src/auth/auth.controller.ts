@@ -1,21 +1,57 @@
-import { Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 import type { User } from "@prisma/client";
-import type { AuthAck, MeResponse } from "@engineerdna/shared";
+import {
+  recruiterLoginRequestSchema,
+  recruiterSignupRequestSchema,
+  type AuthAck,
+  type MeResponse,
+  type RecruiterLoginInput,
+  type RecruiterSignupInput,
+} from "@engineerdna/shared";
 import { AuthService } from "./auth.service";
 import { UsersService, type OAuthProfileInput } from "../users/users.service";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { CurrentUser } from "./decorators/current-user.decorator";
+import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 import { REFRESH_TOKEN_COOKIE } from "./auth.constants";
 
 @Controller("auth")
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly users: UsersService,
     private readonly config: ConfigService,
   ) {}
+
+  // ---- Recruiter credentials auth ----
+
+  /** POST /api/auth/recruiter/signup — register a recruiter, set session. */
+  @Post("recruiter/signup")
+  async recruiterSignup(
+    @Body(new ZodValidationPipe(recruiterSignupRequestSchema)) body: RecruiterSignupInput,
+    @Res() res: Response,
+  ): Promise<void> {
+    const user = await this.authService.recruiterSignup(body);
+    await this.authService.issueSession(user, res);
+    const payload: MeResponse = { user: UsersService.toAuthUser(user, body.companyName) };
+    res.json(payload);
+  }
+
+  /** POST /api/auth/recruiter/login — verify credentials, set session. */
+  @Post("recruiter/login")
+  async recruiterLogin(
+    @Body(new ZodValidationPipe(recruiterLoginRequestSchema)) body: RecruiterLoginInput,
+    @Res() res: Response,
+  ): Promise<void> {
+    const user = await this.authService.recruiterLogin(body);
+    await this.authService.issueSession(user, res);
+    const companyName = await this.users.findCompanyName(user.id);
+    const payload: MeResponse = { user: UsersService.toAuthUser(user, companyName) };
+    res.json(payload);
+  }
 
   // ---- GitHub OAuth ----
 
@@ -70,8 +106,9 @@ export class AuthController {
   /** GET /api/auth/me — the current authenticated user. */
   @Get("me")
   @UseGuards(JwtAuthGuard)
-  me(@CurrentUser() user: User): MeResponse {
-    return { user: UsersService.toAuthUser(user) };
+  async me(@CurrentUser() user: User): Promise<MeResponse> {
+    const companyName = user.role === "RECRUITER" ? await this.users.findCompanyName(user.id) : null;
+    return { user: UsersService.toAuthUser(user, companyName) };
   }
 
   // ---- helpers ----
