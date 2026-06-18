@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
+import { Throttle } from "@nestjs/throttler";
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 import type { User } from "@prisma/client";
@@ -29,6 +30,7 @@ export class AuthController {
   // ---- Recruiter credentials auth ----
 
   /** POST /api/auth/recruiter/signup — register a recruiter, set session. */
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post("recruiter/signup")
   async recruiterSignup(
     @Body(new ZodValidationPipe(recruiterSignupRequestSchema)) body: RecruiterSignupInput,
@@ -41,6 +43,7 @@ export class AuthController {
   }
 
   /** POST /api/auth/recruiter/login — verify credentials, set session. */
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @Post("recruiter/login")
   async recruiterLogin(
     @Body(new ZodValidationPipe(recruiterLoginRequestSchema)) body: RecruiterLoginInput,
