@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import type { Interview as InterviewRow, Prisma, User } from "@prisma/client";
 import { z } from "zod";
 import {
@@ -9,20 +9,27 @@ import {
   type InterviewQuestion,
   type InterviewReport,
   type InterviewRole,
+  type InterviewTurnResult,
   type StartInterviewInput,
   type StartInterviewResult,
-  type SubmitAnswersInput,
 } from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EvidenceService } from "../evidence/evidence.service";
 import { AnthropicService } from "../llm/anthropic.service";
 import { selectInterviewTopics, type InterviewTopic } from "./interview-topics";
 
-const GEN_SYSTEM = `You are a friendly but rigorous technical interviewer conducting a live, spoken mock interview.
-Ground questions in the candidate's chosen role, their resume, and their VERIFIED engineering evidence — never invent experience they don't have.
-Questions are spoken aloud, so keep them natural and conversational. Software-engineering interviews only — design, trade-offs, debugging, real experience — NEVER competitive-programming puzzles.`;
+/** Total questions per interview (the intro plus follow-ups). Kept short. */
+const TARGET_QUESTIONS = 6;
 
-// Human label + focus description per role, used to steer question generation.
+const NEXT_SYSTEM = `You are a friendly but rigorous technical interviewer running a live, spoken mock interview.
+You ask ONE question at a time and adapt to the candidate's previous answers — like a real interviewer.
+Prefer natural follow-ups that go deeper on what they just said; move to a new area when a thread is exhausted or an answer was weak.
+Ground questions in the candidate's role, resume, and verified evidence — never invent experience. Spoken, conversational questions only — NEVER competitive-programming puzzles.`;
+
+const EVAL_SYSTEM = `You are an experienced, fair technical interviewer grading a candidate's answers.
+Score strictly but constructively, based ONLY on what the candidate actually said. Reward correct engineering reasoning even when phrased simply; penalize vague, wrong, or missing answers.
+Return feedback for EVERY question id provided.`;
+
 const ROLE_LABELS: Record<InterviewRole, string> = {
   frontend: "Frontend Developer",
   backend: "Backend Developer",
@@ -43,20 +50,12 @@ const ROLE_FOCUS: Record<InterviewRole, string> = {
   data: "data pipelines, warehousing, SQL, batch and stream processing, and data modeling",
 };
 
-const EVAL_SYSTEM = `You are an experienced, fair technical interviewer grading a candidate's answers.
-Score strictly but constructively, based ONLY on what the candidate actually wrote. Reward correct engineering reasoning even when phrased simply; penalize vague, wrong, or missing answers.
-Return feedback for EVERY question id provided.`;
-
-// What the model returns when generating questions (ids are assigned by us).
-const generatedQuestionsSchema = z.object({
-  questions: z.array(
-    z.object({
-      topic: z.string(),
-      difficulty: z.enum(["easy", "medium", "hard"]),
-      prompt: z.string(),
-      rationale: z.string(),
-    }),
-  ),
+// The model returns a single next question; the id is assigned by us.
+const nextQuestionSchema = z.object({
+  topic: z.string(),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  prompt: z.string(),
+  rationale: z.string(),
 });
 
 @Injectable()
@@ -68,30 +67,22 @@ export class InterviewService {
   ) {}
 
   /**
-   * Generate a personalized, spoken interview for the chosen role — grounded in
-   * the candidate's resume and their verified evidence. One LLM call (batched)
-   * keeps cost to a single request per interview.
+   * Begin an interview. The opening question is deterministic (no LLM cost);
+   * follow-ups are generated one turn at a time. Connecting a repo is optional —
+   * evidence only sharpens the questions when present.
    */
   async startInterview(user: User, input: StartInterviewInput): Promise<StartInterviewResult> {
+    const candidateName = input.candidateName?.trim() || user.name || "there";
     const evidence = await this.evidence.getDeveloperEvidence(user);
     const topics = selectInterviewTopics(evidence.items);
-    const candidateName = input.candidateName?.trim() || user.name || "there";
 
-    const generated = await this.anthropic.generateObject({
-      schema: generatedQuestionsSchema,
-      system: GEN_SYSTEM,
-      prompt: buildGenerationPrompt({
-        role: input.role,
-        candidateName,
-        resumeText: input.resumeText,
-        topics,
-      }),
-    });
-
-    const questions: InterviewQuestion[] = generated.questions.map((q, i) => ({
-      id: `q${i + 1}`,
-      ...q,
-    }));
+    const intro: InterviewQuestion = {
+      id: "q1",
+      topic: "Introduction",
+      difficulty: "easy",
+      prompt: `Hi ${candidateName}, welcome! To start, tell me a bit about yourself and what you've been building.`,
+      rationale: "Warm-up introduction.",
+    };
 
     const displayTopics = topics.length ? topics.map((t) => t.theme) : [ROLE_LABELS[input.role]];
 
@@ -101,8 +92,9 @@ export class InterviewService {
         status: "GENERATED",
         role: input.role,
         candidateName: input.candidateName?.trim() || user.name || null,
+        resumeText: input.resumeText?.trim() || null,
         topics: displayTopics,
-        questions: questions as unknown as Prisma.InputJsonValue,
+        questions: [intro] as unknown as Prisma.InputJsonValue,
         answers: [],
         model: this.anthropic.model,
       },
@@ -111,31 +103,89 @@ export class InterviewService {
     return { available: true, reason: null, interview: toContract(row) };
   }
 
-  /** Grade submitted answers in a single batched LLM call and store the report. */
-  async submitAnswers(user: User, interviewId: string, input: SubmitAnswersInput): Promise<Interview> {
-    const row = await this.requireOwned(user, interviewId);
+  /**
+   * Record the answer to the current question and, unless the interview is over,
+   * generate the next (adaptive) question. Uses the cheap fast model per turn.
+   */
+  async submitTurn(user: User, id: string, answer: string): Promise<InterviewTurnResult> {
+    const row = await this.requireOwned(user, id);
     if (row.status === "EVALUATED") {
-      throw new ConflictException("This interview has already been evaluated.");
+      return { interview: toContract(row), done: true };
     }
 
     const questions = (row.questions as unknown as InterviewQuestion[]) ?? [];
+    const answers = (row.answers as unknown as InterviewAnswer[]) ?? [];
+    const current = questions[questions.length - 1];
+
+    // Store/replace the answer to the question currently on screen.
+    if (current) {
+      const next = answers.filter((a) => a.questionId !== current.id);
+      next.push({ questionId: current.id, answer });
+      answers.length = 0;
+      answers.push(...next);
+    }
+
+    // Interview complete once we've reached the target number of questions.
+    if (questions.length >= TARGET_QUESTIONS) {
+      const updated = await this.prisma.interview.update({
+        where: { id: row.id },
+        data: { answers: answers as unknown as Prisma.InputJsonValue },
+      });
+      return { interview: toContract(updated), done: true };
+    }
+
+    const evidence = await this.evidence.getDeveloperEvidence(user);
+    const topics = selectInterviewTopics(evidence.items);
+    const generated = await this.anthropic.generateObject({
+      schema: nextQuestionSchema,
+      system: NEXT_SYSTEM,
+      model: this.anthropic.fastModel,
+      maxTokens: 1024,
+      prompt: buildNextQuestionPrompt({
+        role: (row.role as InterviewRole) ?? "backend",
+        resumeText: row.resumeText ?? undefined,
+        topics,
+        transcript: questions.map((q) => ({ q, a: answers.find((a) => a.questionId === q.id)?.answer ?? "" })),
+        nextNumber: questions.length + 1,
+        total: TARGET_QUESTIONS,
+      }),
+    });
+
+    questions.push({ id: `q${questions.length + 1}`, ...generated });
+
+    const updated = await this.prisma.interview.update({
+      where: { id: row.id },
+      data: {
+        questions: questions as unknown as Prisma.InputJsonValue,
+        answers: answers as unknown as Prisma.InputJsonValue,
+      },
+    });
+    return { interview: toContract(updated), done: false };
+  }
+
+  /** Grade the full conversation in one call and store the report. */
+  async gradeInterview(user: User, id: string): Promise<Interview> {
+    const row = await this.requireOwned(user, id);
+    if (row.status === "EVALUATED") return toContract(row);
+
+    const questions = (row.questions as unknown as InterviewQuestion[]) ?? [];
+    const answers = (row.answers as unknown as InterviewAnswer[]) ?? [];
+
     const report = await this.anthropic.generateObject<InterviewReport>({
       schema: interviewReportSchema,
       system: EVAL_SYSTEM,
-      prompt: buildEvaluationPrompt(questions, input.answers),
+      prompt: buildEvaluationPrompt(questions, answers),
     });
 
     const updated = await this.prisma.interview.update({
       where: { id: row.id },
       data: {
         status: "EVALUATED",
-        answers: input.answers as unknown as Prisma.InputJsonValue,
         report: report as unknown as Prisma.InputJsonValue,
         overallScore: Math.round(report.overallScore),
         evaluatedAt: new Date(),
       },
     });
-
     return toContract(updated);
   }
 
@@ -186,35 +236,41 @@ function toContract(row: InterviewRow): Interview {
   };
 }
 
-/** Ground question generation in the role, the resume, and verified evidence. */
-function buildGenerationPrompt(opts: {
+/** Build the prompt for the next adaptive question from the conversation. */
+function buildNextQuestionPrompt(opts: {
   role: InterviewRole;
-  candidateName: string;
   resumeText?: string;
   topics: InterviewTopic[];
+  transcript: { q: InterviewQuestion; a: string }[];
+  nextNumber: number;
+  total: number;
 }): string {
   const evidenceLines = opts.topics.length
     ? opts.topics.map((t) => `- ${t.theme} (proven by ${t.techs.join(", ")})`)
-    : ["- (no repository evidence yet — rely on the role and resume)"];
+    : ["- (no connected repositories — rely on the role and resume)"];
 
   const resume = opts.resumeText?.trim()
-    ? `\nResume / background the candidate provided:\n"""\n${opts.resumeText.trim().slice(0, 6000)}\n"""\n`
+    ? `\nCandidate resume / background:\n"""\n${opts.resumeText.trim().slice(0, 4000)}\n"""\n`
     : "\n(No resume provided.)\n";
 
+  const conversation = opts.transcript
+    .map(({ q, a }) => `Interviewer: ${q.prompt}\nCandidate: ${a.trim() || "(no answer)"}`)
+    .join("\n\n");
+
   return [
-    `You are interviewing ${opts.candidateName} for a ${ROLE_LABELS[opts.role]} role.`,
-    `Focus area: ${ROLE_FOCUS[opts.role]}.`,
+    `Role: ${ROLE_LABELS[opts.role]}. Focus area: ${ROLE_FOCUS[opts.role]}.`,
     "",
-    "Their verified hands-on experience (from real repositories):",
+    "Candidate's verified hands-on experience:",
     ...evidenceLines,
     resume,
-    "Generate the interview as a sequence of spoken questions:",
-    `- Question 1 MUST be a warm spoken intro that greets them by name and asks them to introduce themselves — e.g. "Hi ${opts.candidateName}, welcome! To start, tell me a bit about yourself and what you've been building." Set its topic to "Introduction" and difficulty to "easy".`,
-    "- Then 5 more questions for the role, ordered easy → hard, grounded in the focus area, their evidence, and their resume where relevant.",
-    "- Spoken software-engineering questions (concepts, design, trade-offs, experience) — NOT live coding or competitive-programming puzzles.",
-    "- Keep every 'prompt' natural to say out loud (1-3 sentences).",
-    "- 'rationale' is a short non-spoken note on why the question fits this candidate.",
-    "- Produce 6 questions total (the intro plus 5).",
+    "Conversation so far:",
+    conversation,
+    "",
+    `This is question ${opts.nextNumber} of ${opts.total}. Ask the NEXT single spoken question.`,
+    "- Prefer a natural follow-up that digs into their last answer (go deeper, ask for a concrete example, or pose an edge case).",
+    "- If the last answer was empty or weak, gently move to another important area for the role.",
+    "- Escalate difficulty as the interview progresses.",
+    "- Keep the 'prompt' natural to say out loud (1-2 sentences). 'rationale' is a short non-spoken note.",
   ].join("\n");
 }
 
