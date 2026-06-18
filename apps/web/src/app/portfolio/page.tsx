@@ -27,6 +27,7 @@ function PortfolioContent() {
   const [theme, setTheme] = useState<PortfolioTheme>("modern");
   const [published, setPublished] = useState(false);
   const [slug, setSlug] = useState("");
+  const [saved, setSaved] = useState<{ published: boolean; slug: string }>({ published: false, slug: "" });
   const [busy, setBusy] = useState<null | "extract" | "save">(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
@@ -39,6 +40,7 @@ function PortfolioContent() {
         setTheme(p.theme);
         setPublished(p.published);
         setSlug(p.slug ?? "");
+        setSaved({ published: p.published, slug: p.slug ?? "" });
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -56,6 +58,7 @@ function PortfolioContent() {
       setTheme(p.theme);
       setPublished(p.published);
       setSlug(p.slug ?? "");
+      setSaved({ published: p.published, slug: p.slug ?? "" });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't process that resume.");
     } finally {
@@ -70,6 +73,7 @@ function PortfolioContent() {
     try {
       const p = await updatePortfolio({ data, theme, published, slug: slug || undefined });
       setSlug(p.slug ?? "");
+      setSaved({ published: p.published, slug: p.slug ?? "" });
     } catch (e) {
       setError(
         e instanceof Error && e.message.includes("409") ? "That portfolio URL is taken." : "Couldn't save changes.",
@@ -123,6 +127,7 @@ function PortfolioContent() {
           setPublished={setPublished}
           slug={slug}
           setSlug={setSlug}
+          saved={saved}
           saving={busy === "save"}
           onSave={save}
         />
@@ -181,6 +186,7 @@ function Editor({
   setPublished,
   slug,
   setSlug,
+  saved,
   saving,
   onSave,
 }: {
@@ -192,11 +198,15 @@ function Editor({
   setPublished: (b: boolean) => void;
   slug: string;
   setSlug: (s: string) => void;
+  saved: { published: boolean; slug: string };
   saving: boolean;
   onSave: () => void;
 }) {
   const patch = (p: Partial<PortfolioData>) => setData({ ...data, ...p });
-  const publicUrl = typeof window !== "undefined" && slug ? `${window.location.origin}/p/${slug}` : "";
+  // The live link reflects the SAVED state — never an unsaved toggle.
+  const isLive = saved.published && !!saved.slug;
+  const publicUrl = typeof window !== "undefined" && isLive ? `${window.location.origin}/p/${saved.slug}` : "";
+  const dirty = published !== saved.published || slug !== saved.slug;
   const [copied, setCopied] = useState(false);
 
   return (
@@ -227,23 +237,25 @@ function Editor({
             <span>/p/</span>
             <input value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} placeholder="your-name" className={`${input} w-40`} />
           </div>
-          {published && publicUrl && (
-            <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
-              View live <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-          {published && publicUrl && (
-            <button
-              onClick={() => {
-                void navigator.clipboard.writeText(publicUrl);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              {copied ? "Copied!" : "Copy link"}
-            </button>
-          )}
+          {isLive && publicUrl ? (
+            <>
+              <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+                View live <ExternalLink className="h-3 w-3" />
+              </a>
+              <button
+                onClick={() => {
+                  void navigator.clipboard.writeText(publicUrl);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                {copied ? "Copied!" : "Copy link"}
+              </button>
+            </>
+          ) : dirty ? (
+            <span className="text-xs text-amber-300">Save to apply</span>
+          ) : null}
           <button
             onClick={onSave}
             disabled={saving}
