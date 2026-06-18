@@ -8,6 +8,7 @@ import {
   Dna,
   FileText,
   FolderGit2,
+  GitPullRequest,
   History,
   LayoutDashboard,
   LogOut,
@@ -29,6 +30,7 @@ const NAV = [
   { href: "/interview", label: "Interview Prep", icon: MessagesSquare },
   { href: "/resume", label: "Resume Review", icon: FileText },
   { href: "/roadmap", label: "Learning Roadmap", icon: Map },
+  { href: "/opensource", label: "Open Source", icon: GitPullRequest },
   { href: "/profile", label: "Passport", icon: ScrollText },
 ];
 
