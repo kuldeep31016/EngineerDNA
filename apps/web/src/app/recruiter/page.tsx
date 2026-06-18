@@ -19,14 +19,12 @@ import {
 } from "lucide-react";
 import type { CandidateProfile, CandidateSummary } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { useAuthStore } from "@/store/auth";
 import {
   addShortlist,
   getCandidate,
   getShortlist,
   removeShortlist,
   searchCandidates,
-  switchRole,
 } from "@/services/recruiter";
 
 const SUGGESTIONS = ["React", "Node.js", "TypeScript", "PostgreSQL", "Docker", "AWS", "Redis", "Spring Boot", "Kafka", "Kubernetes"];
@@ -38,64 +36,21 @@ function scoreColor(v: number): string {
 }
 
 function RecruiterContent() {
-  const { user, setUser } = useAuthStore();
-  const isRecruiter = user?.role === "RECRUITER" || user?.role === "ADMIN";
-
   return (
     <main className="mx-auto max-w-4xl px-6 py-8">
       <div className="flex items-center gap-2.5">
         <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
           <Users className="h-5 w-5" />
         </span>
-        <div className="flex-1">
+        <div>
           <h1 className="text-3xl font-bold tracking-tight">Find Talent</h1>
           <p className="text-sm text-muted-foreground">
             Search verified engineers by real, evidence-backed skills — not resumes.
           </p>
         </div>
-        {isRecruiter && (
-          <button
-            onClick={async () => setUser(await switchRole("STUDENT"))}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Exit recruiter mode
-          </button>
-        )}
       </div>
-
-      {isRecruiter ? <Dashboard /> : <Gate onSwitch={async () => setUser(await switchRole("RECRUITER"))} />}
+      <Dashboard />
     </main>
-  );
-}
-
-function Gate({ onSwitch }: { onSwitch: () => Promise<void> }) {
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="mt-6 rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card p-8 text-center">
-      <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-white">
-        <Users className="h-6 w-6" />
-      </span>
-      <h2 className="mt-3 text-lg font-semibold">Switch to recruiter mode</h2>
-      <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
-        Recruiter mode lets you search candidates by verified engineering skills, view their evidence-backed
-        profiles, and build a shortlist. You can switch back anytime.
-      </p>
-      <button
-        onClick={async () => {
-          setBusy(true);
-          try {
-            await onSwitch();
-          } finally {
-            setBusy(false);
-          }
-        }}
-        disabled={busy}
-        className="mt-5 inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-        Enter recruiter mode
-      </button>
-    </div>
   );
 }
 
@@ -518,7 +473,7 @@ function Empty({ icon: Icon, text }: { icon: typeof Search; text: string }) {
 
 export default function RecruiterPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute roles={["RECRUITER", "ADMIN"]}>
       <RecruiterContent />
     </ProtectedRoute>
   );
