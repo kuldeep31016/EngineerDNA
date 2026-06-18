@@ -31,3 +31,4 @@ export * from "./contracts/timeline";
 export * from "./contracts/oss";
 export * from "./contracts/portfolio";
 export * from "./contracts/reputation";
+export * from "./contracts/copilot";
