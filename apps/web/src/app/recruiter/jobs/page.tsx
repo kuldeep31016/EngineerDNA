@@ -1,21 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Briefcase,
-  Loader2,
-  MapPin,
-  Pencil,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  Users,
-  X,
-} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Briefcase, Loader2, MapPin, Pencil, Plus, Trash2, Users, X } from "lucide-react";
 import {
   JOB_TYPES,
   JOB_WORK_MODES,
-  type CandidateSummary,
   type CreateJobInput,
   type JobPost,
   type JobType,
@@ -23,23 +13,17 @@ import {
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
-import { createJob, deleteJob, getJobMatches, listJobs, updateJob } from "@/services/jobs";
+import { createJob, deleteJob, listJobs, updateJob } from "@/services/jobs";
 
 const typeLabel = (t: JobType) => JOB_TYPES.find((x) => x.value === t)?.label ?? t;
 const modeLabel = (m: JobWorkMode) => JOB_WORK_MODES.find((x) => x.value === m)?.label ?? m;
 
-function scoreColor(v: number): string {
-  if (v >= 75) return "text-emerald-400";
-  if (v >= 50) return "text-amber-400";
-  return "text-rose-400";
-}
-
 function JobsContent() {
+  const router = useRouter();
   const [loaded, setLoaded] = useState(false);
   const [jobs, setJobs] = useState<JobPost[]>([]);
   const [editing, setEditing] = useState<JobPost | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [matchesFor, setMatchesFor] = useState<JobPost | null>(null);
 
   const refresh = () => listJobs().then(setJobs).catch(() => {});
   useEffect(() => {
@@ -103,7 +87,7 @@ function JobsContent() {
               onEdit={() => openEdit(job)}
               onToggle={() => toggleStatus(job)}
               onDelete={() => remove(job)}
-              onMatches={() => setMatchesFor(job)}
+              onMatches={() => router.push(`/recruiter/jobs/${job.id}`)}
             />
           ))}
         </div>
@@ -119,8 +103,6 @@ function JobsContent() {
           }}
         />
       )}
-
-      {matchesFor && <MatchesModal job={matchesFor} onClose={() => setMatchesFor(null)} />}
     </main>
   );
 }
@@ -345,67 +327,6 @@ function JobFormModal({ job, onClose, onSaved }: { job: JobPost | null; onClose:
             {busy && <Loader2 className="h-4 w-4 animate-spin" />} {job ? "Save changes" : "Post job"}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MatchesModal({ job, onClose }: { job: JobPost; onClose: () => void }) {
-  const [candidates, setCandidates] = useState<CandidateSummary[] | null>(null);
-
-  useEffect(() => {
-    getJobMatches(job.id)
-      .then((r) => setCandidates(r.candidates))
-      .catch(() => setCandidates([]));
-  }, [job.id]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={onClose}>
-      <div
-        className="h-full w-full max-w-md overflow-y-auto border-l border-border bg-card p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">Matches · {job.title}</h2>
-            <p className="text-xs text-muted-foreground">Verified by real evidence</p>
-          </div>
-          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {candidates === null ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-        ) : candidates.length === 0 ? (
-          <div className="mt-10 text-center text-sm text-muted-foreground">
-            <ShieldCheck className="mx-auto h-6 w-6" />
-            <p className="mt-2">No verified engineers match these skills yet.</p>
-          </div>
-        ) : (
-          <div className="mt-4 space-y-2.5">
-            {candidates.map((c) => (
-              <div key={c.id} className="rounded-lg border border-border p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-medium">{c.name}</p>
-                  <span className={`text-sm font-semibold tabular-nums ${scoreColor(c.overall)}`}>{c.overall}</span>
-                </div>
-                {c.headline && <p className="truncate text-xs text-muted-foreground">{c.headline}</p>}
-                {c.matchedSkills.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {c.matchedSkills.map((s) => (
-                      <span key={s} className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-300">
-                        {s} ✓
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
