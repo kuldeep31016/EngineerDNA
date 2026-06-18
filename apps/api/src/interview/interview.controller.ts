@@ -1,13 +1,14 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import type { User } from "@prisma/client";
 import {
+  interviewTurnRequestSchema,
   startInterviewRequestSchema,
-  submitAnswersRequestSchema,
   type Interview,
   type InterviewListItem,
+  type InterviewTurnInput,
+  type InterviewTurnResult,
   type StartInterviewInput,
   type StartInterviewResult,
-  type SubmitAnswersInput,
 } from "@engineerdna/shared";
 import { InterviewService } from "./interview.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -20,7 +21,7 @@ import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 export class InterviewController {
   constructor(private readonly interview: InterviewService) {}
 
-  /** POST /api/interview/start — generate a personalized interview for a role. */
+  /** POST /api/interview/start — begin an interview for a role (resume-aware). */
   @Post("start")
   start(
     @CurrentUser() user: User,
@@ -41,13 +42,19 @@ export class InterviewController {
     return this.interview.getInterview(user, id);
   }
 
-  /** POST /api/interview/:id/answers — submit answers and get a graded report. */
-  @Post(":id/answers")
-  submit(
+  /** POST /api/interview/:id/turn — answer the current question, get the next. */
+  @Post(":id/turn")
+  turn(
     @CurrentUser() user: User,
     @Param("id") id: string,
-    @Body(new ZodValidationPipe(submitAnswersRequestSchema)) body: SubmitAnswersInput,
-  ): Promise<Interview> {
-    return this.interview.submitAnswers(user, id, body);
+    @Body(new ZodValidationPipe(interviewTurnRequestSchema)) body: InterviewTurnInput,
+  ): Promise<InterviewTurnResult> {
+    return this.interview.submitTurn(user, id, body.answer);
+  }
+
+  /** POST /api/interview/:id/grade — grade the conversation and return a report. */
+  @Post(":id/grade")
+  grade(@CurrentUser() user: User, @Param("id") id: string): Promise<Interview> {
+    return this.interview.gradeInterview(user, id);
   }
 }
