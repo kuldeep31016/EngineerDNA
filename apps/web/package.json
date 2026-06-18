@@ -12,6 +12,7 @@
     "@engineerdna/shared": "workspace:*",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "html2canvas": "^1.4.1",
     "lucide-react": "^0.453.0",
     "mammoth": "^1.12.0",
     "next": "^15.1.0",
