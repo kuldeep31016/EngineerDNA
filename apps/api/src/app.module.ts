@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { Module } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { PrismaModule } from "./prisma/prisma.module";
 import { HealthModule } from "./health/health.module";
 import { UsersModule } from "./users/users.module";
@@ -36,6 +38,8 @@ import { CopilotModule } from "./copilot/copilot.module";
       isGlobal: true,
       envFilePath: [join(process.cwd(), ".env"), join(process.cwd(), "..", "..", ".env")],
     }),
+    // Baseline rate limit (per IP). Auth + LLM routes tighten this further.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
     LlmModule,
     HealthModule,
@@ -59,5 +63,6 @@ import { CopilotModule } from "./copilot/copilot.module";
     ReputationModule,
     CopilotModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}
