@@ -22,10 +22,9 @@ const NAV = [
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },
   { href: "/evidence", label: "Evidence", icon: BadgeCheck },
   { href: "/career", label: "Career Intelligence", icon: Compass },
+  { href: "/interview", label: "Interview Prep", icon: MessagesSquare },
   { href: "/profile", label: "Passport", icon: ScrollText },
 ];
-
-const SOON = [{ label: "Interview Prep", icon: MessagesSquare }];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -66,24 +65,6 @@ export function Sidebar() {
               </Link>
             );
           })}
-        </div>
-
-        <p className="px-3 pb-2 pt-5 text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
-          Coming soon
-        </p>
-        <div className="space-y-1">
-          {SOON.map((item) => (
-            <div
-              key={item.label}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/40"
-            >
-              <item.icon className="h-4 w-4 shrink-0" />
-              {item.label}
-              <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wide">
-                soon
-              </span>
-            </div>
-          ))}
         </div>
       </nav>
 
