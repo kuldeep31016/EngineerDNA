@@ -14,6 +14,7 @@ import { VerificationModule } from "./verification/verification.module";
 import { DnaModule } from "./dna/dna.module";
 import { ProjectIntelligenceModule } from "./project/project-intelligence.module";
 import { CareerModule } from "./career/career.module";
+import { InterviewModule } from "./interview/interview.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -40,6 +41,7 @@ import { CareerModule } from "./career/career.module";
     DnaModule,
     ProjectIntelligenceModule,
     CareerModule,
+    InterviewModule,
   ],
 })
 export class AppModule {}
