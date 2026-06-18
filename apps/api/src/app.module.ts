@@ -25,6 +25,7 @@ import { OssModule } from "./oss/oss.module";
 import { PortfolioModule } from "./portfolio/portfolio.module";
 import { ReputationModule } from "./reputation/reputation.module";
 import { CopilotModule } from "./copilot/copilot.module";
+import { PaymentsModule } from "./payments/payments.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -62,6 +63,7 @@ import { CopilotModule } from "./copilot/copilot.module";
     PortfolioModule,
     ReputationModule,
     CopilotModule,
+    PaymentsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
