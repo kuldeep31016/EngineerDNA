@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Users } from "lucide-react";
+import { Briefcase, LogOut, Users } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-const NAV = [{ href: "/recruiter", label: "Find Talent", icon: Users }];
+const NAV = [
+  { href: "/recruiter", label: "Find Talent", icon: Users },
+  { href: "/recruiter/jobs", label: "Job Posts", icon: Briefcase },
+];
 
 /** Sidebar for the recruiter app — a separate experience from the student app. */
 export function RecruiterSidebar() {
@@ -32,7 +35,8 @@ export function RecruiterSidebar() {
         </p>
         <div className="space-y-1">
           {NAV.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const active =
+              pathname === item.href || (item.href !== "/recruiter" && pathname.startsWith(`${item.href}/`));
             return (
               <Link
                 key={item.href}
