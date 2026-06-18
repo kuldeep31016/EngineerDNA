@@ -5,14 +5,18 @@ import {
   type Interview,
   type InterviewAnswer,
   type InterviewListItem,
+  type StartInterviewInput,
   type StartInterviewResult,
 } from "@engineerdna/shared";
 import { apiFetch } from "@/lib/api";
 
-/** POST — generate a personalized interview from verified evidence. */
-export async function startInterview(): Promise<StartInterviewResult> {
+/** POST — generate a personalized interview for a role (resume-aware). */
+export async function startInterview(input: StartInterviewInput): Promise<StartInterviewResult> {
   return startInterviewResultSchema.parse(
-    await apiFetch<unknown>("/interview/start", { method: "POST" }),
+    await apiFetch<unknown>("/interview/start", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   );
 }
 
