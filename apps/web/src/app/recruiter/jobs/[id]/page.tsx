@@ -13,7 +13,7 @@ import {
   Trophy,
 } from "lucide-react";
 import type { JobPost, RankedCandidate } from "@engineerdna/shared";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { addShortlist, removeShortlist } from "@/services/recruiter";
 import { getJob, getJobRanking } from "@/services/jobs";
@@ -243,8 +243,8 @@ function RankedCard({
 
 export default function JobRankingPage() {
   return (
-    <ProtectedRoute roles={["RECRUITER", "ADMIN"]}>
+    <RecruiterGate>
       <RankingContent />
-    </ProtectedRoute>
+    </RecruiterGate>
   );
 }

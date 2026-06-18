@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import type { CandidateProfile, CandidateSummary } from "@engineerdna/shared";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import {
   addShortlist,
   getCandidate,
@@ -473,8 +473,8 @@ function Empty({ icon: Icon, text }: { icon: typeof Search; text: string }) {
 
 export default function RecruiterPage() {
   return (
-    <ProtectedRoute roles={["RECRUITER", "ADMIN"]}>
+    <RecruiterGate>
       <RecruiterContent />
-    </ProtectedRoute>
+    </RecruiterGate>
   );
 }

@@ -11,7 +11,7 @@ import {
   type JobType,
   type JobWorkMode,
 } from "@engineerdna/shared";
-import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { createJob, deleteJob, listJobs, updateJob } from "@/services/jobs";
 
@@ -343,8 +343,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function JobsPage() {
   return (
-    <ProtectedRoute roles={["RECRUITER", "ADMIN"]}>
+    <RecruiterGate>
       <JobsContent />
-    </ProtectedRoute>
+    </RecruiterGate>
   );
 }
