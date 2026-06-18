@@ -67,6 +67,25 @@ enum InterviewStatus {
   EVALUATED
 }
 
+/// Job posting classification (recruiter Job Posts).
+enum JobType {
+  FULL_TIME
+  INTERNSHIP
+  CONTRACT
+  PART_TIME
+}
+
+enum JobWorkMode {
+  ONSITE
+  REMOTE
+  HYBRID
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+}
+
 /// Where a piece of evidence came from. Source-typed so non-repo signals
 /// (interviews, learning, open source) can be first-class evidence later.
 enum EvidenceSource {
@@ -104,6 +123,7 @@ model User {
   shortlists    Shortlist[]     @relation("RecruiterShortlists")
   shortlistedBy Shortlist[]     @relation("CandidateShortlistedBy")
   recruiterProfile RecruiterProfile?
+  jobs          JobPost[]       @relation("RecruiterJobs")
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -215,6 +235,25 @@ model Interview {
   evaluatedAt  DateTime?
 
   @@index([userId])
+}
+
+/// A job posting created by a recruiter. Required skills are matched against
+/// verified candidate evidence to surface qualified engineers.
+model JobPost {
+  id          String      @id @default(uuid()) @db.Uuid
+  recruiterId String      @db.Uuid
+  recruiter   User        @relation("RecruiterJobs", fields: [recruiterId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  skills      Json        @default("[]")
+  location    String?
+  type        JobType     @default(FULL_TIME)
+  workMode    JobWorkMode @default(ONSITE)
+  status      JobStatus   @default(OPEN)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([recruiterId])
 }
 
 /// Company details for a recruiter account (Module 14 — role-based access).
