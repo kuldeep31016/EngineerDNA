@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Award,
   BadgeCheck,
   Compass,
   Dna,
@@ -24,6 +25,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dna", label: "Developer DNA", icon: Dna },
+  { href: "/reputation", label: "Reputation", icon: Award },
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },
   { href: "/evidence", label: "Evidence", icon: BadgeCheck },
   { href: "/timeline", label: "Timeline", icon: History },
