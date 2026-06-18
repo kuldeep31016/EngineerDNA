@@ -22,6 +22,24 @@ interface GithubUser {
   login: string;
 }
 
+/** A repository as returned by the GitHub search API (fields we use). */
+export interface GithubSearchRepo {
+  full_name: string;
+  description: string | null;
+  language: string | null;
+  stargazers_count: number;
+  html_url: string;
+  topics?: string[];
+  archived?: boolean;
+}
+
+/** An issue as returned by the GitHub search API (fields we use). */
+export interface GithubSearchIssue {
+  title: string;
+  html_url: string;
+  labels: { name: string }[];
+}
+
 /**
  * Thin client over the GitHub REST API. Uses fetch (Node 20) — no SDK, to keep
  * dependencies minimal. Only the calls Module 4 needs: token exchange, identity,
@@ -73,6 +91,24 @@ export class GithubApiService {
       if (batch.length < perPage) break;
     }
     return all;
+  }
+
+  /** Search public repositories (e.g. by language/topic + good-first-issues). */
+  async searchRepositories(token: string, query: string, perPage = 12): Promise<GithubSearchRepo[]> {
+    const url = `${this.api}/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${perPage}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { items?: GithubSearchRepo[] };
+    return data.items ?? [];
+  }
+
+  /** Search open issues (e.g. good-first-issues in a repo). */
+  async searchIssues(token: string, query: string, perPage = 5): Promise<GithubSearchIssue[]> {
+    const url = `${this.api}/search/issues?q=${encodeURIComponent(query)}&sort=created&order=desc&per_page=${perPage}`;
+    const res = await fetch(url, { headers: this.headers(token) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { items?: GithubSearchIssue[] };
+    return data.items ?? [];
   }
 
   /** Languages used in a repo (returns the language names, most-bytes first). */
