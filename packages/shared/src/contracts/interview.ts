@@ -53,10 +53,35 @@ export const interviewReportSchema = z.object({
 });
 export type InterviewReport = z.infer<typeof interviewReportSchema>;
 
+/** The role a candidate is interviewing for — drives question focus. */
+export const interviewRoleSchema = z.enum([
+  "frontend",
+  "backend",
+  "fullstack",
+  "cloud",
+  "dsa",
+  "aiml",
+  "data",
+]);
+export type InterviewRole = z.infer<typeof interviewRoleSchema>;
+
+/** Roles offered in the setup form (value + human label). */
+export const INTERVIEW_ROLES: { value: InterviewRole; label: string }[] = [
+  { value: "frontend", label: "Frontend Developer" },
+  { value: "backend", label: "Backend Developer" },
+  { value: "fullstack", label: "Full-Stack Developer" },
+  { value: "cloud", label: "Cloud / DevOps Engineer" },
+  { value: "dsa", label: "DSA / Problem Solving" },
+  { value: "aiml", label: "AI / ML Engineer" },
+  { value: "data", label: "Data Engineer" },
+];
+
 /** A full interview record. */
 export const interviewSchema = z.object({
   id: z.string(),
   status: interviewStatusSchema,
+  role: z.string().nullable(),
+  candidateName: z.string().nullable(),
   topics: z.array(z.string()),
   questions: z.array(interviewQuestionSchema),
   answers: z.array(interviewAnswerSchema),
@@ -71,6 +96,7 @@ export type Interview = z.infer<typeof interviewSchema>;
 export const interviewListItemSchema = z.object({
   id: z.string(),
   status: interviewStatusSchema,
+  role: z.string().nullable(),
   topics: z.array(z.string()),
   questionCount: z.number(),
   overallScore: z.number().nullable(),
@@ -78,7 +104,15 @@ export const interviewListItemSchema = z.object({
 });
 export type InterviewListItem = z.infer<typeof interviewListItemSchema>;
 
-/** Result of starting an interview — unavailable when there is no evidence yet. */
+/** Request body when starting an interview — role plus optional resume context. */
+export const startInterviewRequestSchema = z.object({
+  role: interviewRoleSchema,
+  candidateName: z.string().trim().max(120).optional(),
+  resumeText: z.string().trim().max(20000).optional(),
+});
+export type StartInterviewInput = z.infer<typeof startInterviewRequestSchema>;
+
+/** Result of starting an interview. */
 export const startInterviewResultSchema = z.object({
   available: z.boolean(),
   reason: z.string().nullable(),
