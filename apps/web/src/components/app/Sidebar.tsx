@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   Compass,
   Dna,
+  FileText,
   FolderGit2,
   LayoutDashboard,
   LogOut,
@@ -23,6 +24,7 @@ const NAV = [
   { href: "/evidence", label: "Evidence", icon: BadgeCheck },
   { href: "/career", label: "Career Intelligence", icon: Compass },
   { href: "/interview", label: "Interview Prep", icon: MessagesSquare },
+  { href: "/resume", label: "Resume Review", icon: FileText },
   { href: "/profile", label: "Passport", icon: ScrollText },
 ];
 
