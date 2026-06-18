@@ -23,7 +23,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
 
-  if (BARE_ROUTES.has(pathname)) return <>{children}</>;
+  if (BARE_ROUTES.has(pathname) || pathname.startsWith("/p/")) return <>{children}</>;
 
   const isRecruiter = user?.role === "RECRUITER" || user?.role === "ADMIN";
 
