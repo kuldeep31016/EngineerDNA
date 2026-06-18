@@ -196,6 +196,7 @@ model Interview {
   status       InterviewStatus @default(GENERATED)
   role         String?
   candidateName String?
+  resumeText   String?
   topics       Json            @default("[]")
   questions    Json            @default("[]")
   answers      Json            @default("[]")
