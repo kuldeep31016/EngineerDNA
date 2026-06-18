@@ -18,6 +18,7 @@ import { InterviewModule } from "./interview/interview.module";
 import { ResumeModule } from "./resume/resume.module";
 import { RoadmapModule } from "./roadmap/roadmap.module";
 import { RecruiterModule } from "./recruiter/recruiter.module";
+import { TimelineModule } from "./timeline/timeline.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -48,6 +49,7 @@ import { RecruiterModule } from "./recruiter/recruiter.module";
     ResumeModule,
     RoadmapModule,
     RecruiterModule,
+    TimelineModule,
   ],
 })
 export class AppModule {}
