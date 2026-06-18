@@ -13,6 +13,7 @@ import {
   Map,
   MessagesSquare,
   ScrollText,
+  Users,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,6 +29,7 @@ const NAV = [
   { href: "/resume", label: "Resume Review", icon: FileText },
   { href: "/roadmap", label: "Learning Roadmap", icon: Map },
   { href: "/profile", label: "Passport", icon: ScrollText },
+  { href: "/recruiter", label: "Find Talent", icon: Users },
 ];
 
 export function Sidebar() {
