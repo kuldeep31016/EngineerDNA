@@ -3,6 +3,7 @@ import { RecruiterController } from "./recruiter.controller";
 import { RecruiterService } from "./recruiter.service";
 import { JobController } from "./job.controller";
 import { JobService } from "./job.service";
+import { RankingService } from "./ranking.service";
 import { EvidenceModule } from "../evidence/evidence.module";
 
 /**
@@ -13,7 +14,7 @@ import { EvidenceModule } from "../evidence/evidence.module";
 @Module({
   imports: [EvidenceModule],
   controllers: [RecruiterController, JobController],
-  providers: [RecruiterService, JobService],
+  providers: [RecruiterService, JobService, RankingService],
   exports: [RecruiterService],
 })
 export class RecruiterModule {}
