@@ -32,11 +32,13 @@ export type SkillStatus = (typeof SkillStatus)[keyof typeof SkillStatus];
 export const skillStatusSchema = z.nativeEnum(SkillStatus);
 
 /**
- * OAuth identity providers a user can authenticate with.
+ * Identity providers a user can authenticate with. Students use OAuth
+ * (GITHUB/GOOGLE); recruiters register with email + password (CREDENTIALS).
  */
 export const AuthProvider = {
   GITHUB: "GITHUB",
   GOOGLE: "GOOGLE",
+  CREDENTIALS: "CREDENTIALS",
 } as const;
 export type AuthProvider = (typeof AuthProvider)[keyof typeof AuthProvider];
 export const authProviderSchema = z.nativeEnum(AuthProvider);
