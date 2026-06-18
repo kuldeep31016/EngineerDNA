@@ -21,3 +21,4 @@ export * from "./contracts/score";
 export * from "./contracts/dna";
 export * from "./contracts/project-intelligence";
 export * from "./contracts/career";
+export * from "./contracts/interview";
