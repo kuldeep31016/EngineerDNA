@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { AuthProvider, Prisma, User } from "@prisma/client";
+import type { AuthProvider, Prisma, Role, User } from "@prisma/client";
 import type { AuthUser } from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -15,6 +15,11 @@ export interface OAuthProfileInput {
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Switch a user's role (Student ↔ Recruiter) so they can use both sides. */
+  updateRole(id: string, role: Role): Promise<User> {
+    return this.prisma.user.update({ where: { id }, data: { role } });
+  }
 
   findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
