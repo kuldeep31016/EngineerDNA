@@ -217,6 +217,7 @@ model ResumeReview {
   userId           String   @unique @db.Uuid
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   resumeText       String
+  inputHash        String?
   atsScore         Int
   engineeringScore Int
   report           Json
