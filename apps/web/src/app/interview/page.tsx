@@ -21,6 +21,7 @@ import {
   Video,
   VideoOff,
   Volume2,
+  X,
 } from "lucide-react";
 import {
   INTERVIEW_ROLES,
@@ -230,6 +231,7 @@ function Setup({
   const [resumeName, setResumeName] = useState<string | null>(null);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [showManual, setShowManual] = useState(false);
 
   useEffect(() => {
     if (defaultName) setName(defaultName);
@@ -239,15 +241,25 @@ function Setup({
     const file = e.target.files?.[0];
     if (!file) return;
     setParseError(null);
+    setShowManual(false);
     setResumeName(file.name);
     setParsing(true);
     try {
       setResumeText(await extractPdfText(file));
     } catch {
-      setParseError("Couldn't read that PDF — paste your resume text below instead.");
+      setParseError("Couldn't read that PDF — add your details manually instead.");
+      setResumeName(null);
     } finally {
       setParsing(false);
     }
+    e.target.value = "";
+  }
+
+  function clearResume() {
+    setResumeText("");
+    setResumeName(null);
+    setShowManual(false);
+    setParseError(null);
   }
 
   function submit() {
@@ -262,9 +274,8 @@ function Setup({
     <div className="mt-6 space-y-4">
       <div className="rounded-2xl border border-border bg-gradient-to-br from-primary/5 via-card to-card p-6">
         <h2 className="text-lg font-semibold">Set up your interview</h2>
-        <p className="mt-1 max-w-lg text-sm text-muted-foreground">
-          The AI interviewer will turn on your camera, greet you, and ask spoken questions for your role —
-          grounded in your resume and your verified evidence. Answer out loud; you&apos;ll get a graded report.
+        <p className="mt-1 text-sm text-muted-foreground">
+          Pick a role, add your resume if you like, and start.
         </p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -293,29 +304,52 @@ function Setup({
         </div>
 
         <div className="mt-4">
-          <div className="mb-1.5 flex items-center justify-between">
-            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Resume <span className="normal-case text-muted-foreground/70">(optional)</span>
-            </label>
-            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary hover:underline">
-              {parsing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              {resumeName ? "Replace PDF" : "Upload PDF"}
+          <label className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Resume <span className="normal-case text-muted-foreground/70">(optional)</span>
+          </label>
+
+          {parsing ? (
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" /> Reading your resume…
+            </div>
+          ) : resumeName ? (
+            <div className="flex items-center gap-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-sm">
+              <FileText className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span className="min-w-0 flex-1 truncate">{resumeName}</span>
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+              <button
+                onClick={clearResume}
+                aria-label="Remove resume"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background px-3 py-3 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground">
+              <Upload className="h-4 w-4" /> Upload PDF
               <input type="file" accept="application/pdf" className="hidden" onChange={onResumeFile} />
             </label>
-          </div>
-          {resumeName && (
-            <p className="mb-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <FileText className="h-3.5 w-3.5" /> {resumeName}
-            </p>
           )}
-          <textarea
-            value={resumeText}
-            onChange={(e) => setResumeText(e.target.value)}
-            rows={4}
-            placeholder="Upload a PDF above, or paste your resume / key experience here so questions match your background."
-            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary/60"
-          />
-          {parseError && <p className="mt-1 text-xs text-amber-300">{parseError}</p>}
+
+          <button
+            onClick={() => setShowManual((v) => !v)}
+            className="mt-2 text-xs font-medium text-primary transition-opacity hover:opacity-80"
+          >
+            {showManual ? "Hide details" : resumeName ? "Edit details" : "Or add details manually"}
+          </button>
+
+          {showManual && (
+            <textarea
+              value={resumeText}
+              onChange={(e) => setResumeText(e.target.value)}
+              rows={4}
+              placeholder="Paste your resume or key experience so questions match your background."
+              className="mt-2 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary/60"
+            />
+          )}
+
+          {parseError && <p className="mt-1.5 text-xs text-amber-300">{parseError}</p>}
         </div>
 
         <button
@@ -334,8 +368,7 @@ function Setup({
           )}
         </button>
         <p className="mt-2 text-xs text-muted-foreground">
-          We&apos;ll ask for camera &amp; microphone access. Your video stays in your browser — nothing is recorded
-          or uploaded.
+          Camera &amp; mic stay in your browser — nothing is recorded or uploaded.
         </p>
       </div>
 
