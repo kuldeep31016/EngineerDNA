@@ -9,6 +9,7 @@ import {
   FileText,
   FolderGit2,
   GitPullRequest,
+  Globe,
   History,
   LayoutDashboard,
   LogOut,
@@ -31,6 +32,7 @@ const NAV = [
   { href: "/resume", label: "Resume Review", icon: FileText },
   { href: "/roadmap", label: "Learning Roadmap", icon: Map },
   { href: "/opensource", label: "Open Source", icon: GitPullRequest },
+  { href: "/portfolio", label: "Portfolio", icon: Globe },
   { href: "/profile", label: "Passport", icon: ScrollText },
 ];
 
