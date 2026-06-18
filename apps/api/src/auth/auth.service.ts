@@ -1,11 +1,13 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { createHash, randomBytes } from "node:crypto";
 import type { Response } from "express";
 import type { User } from "@prisma/client";
+import type { RecruiterLoginInput, RecruiterSignupInput } from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { UsersService, type OAuthProfileInput } from "../users/users.service";
+import { PasswordService } from "./password.service";
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
@@ -22,11 +24,38 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly passwords: PasswordService,
   ) {}
 
   /** First login creates the account; every login refreshes profile + lastLogin. */
   loginWithOAuth(profile: OAuthProfileInput): Promise<User> {
     return this.users.upsertFromOAuth(profile);
+  }
+
+  /** Register a recruiter (email + password + company). Throws if email taken. */
+  async recruiterSignup(input: RecruiterSignupInput): Promise<User> {
+    const email = input.email.toLowerCase();
+    const existing = await this.users.findByEmail(email);
+    if (existing) {
+      throw new ConflictException("An account with this email already exists.");
+    }
+    return this.users.createRecruiter({
+      email,
+      name: input.name,
+      passwordHash: this.passwords.hash(input.password),
+      companyName: input.companyName,
+      companyWebsite: input.companyWebsite,
+      title: input.title,
+    });
+  }
+
+  /** Verify recruiter credentials. Throws on any mismatch (no user enumeration). */
+  async recruiterLogin(input: RecruiterLoginInput): Promise<User> {
+    const user = await this.users.findByEmail(input.email.toLowerCase());
+    if (!user || user.provider !== "CREDENTIALS" || !this.passwords.verify(input.password, user.passwordHash)) {
+      throw new UnauthorizedException("Invalid email or password.");
+    }
+    return this.users.markLogin(user.id);
   }
 
   /** Issue a fresh access JWT + a rotated refresh token, and set both cookies. */
