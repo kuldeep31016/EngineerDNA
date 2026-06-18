@@ -24,6 +24,10 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { extractPdfText } from "@/lib/resume";
 import { getResumeReview, reviewResume } from "@/services/resume";
 
+function fmtDate(iso: string): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
 function scoreColor(v: number): string {
   if (v >= 75) return "text-emerald-400";
   if (v >= 50) return "text-amber-400";
@@ -199,6 +203,9 @@ function Uploader({ onDone }: { onDone: (r: ResumeReview) => void }) {
 function Result({ review, onAgain }: { review: ResumeReview; onAgain: () => void }) {
   return (
     <div className="mt-6 space-y-4">
+      {review.generatedAt && (
+        <p className="text-xs text-muted-foreground">Reviewed {fmtDate(review.generatedAt)} · saved automatically</p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <ScoreCard label="ATS score" value={review.atsScore} hint="Applicant tracking readiness" />
         <ScoreCard label="Engineering score" value={review.engineeringScore} hint="Overall resume strength" />
