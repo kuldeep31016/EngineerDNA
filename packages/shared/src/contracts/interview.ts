@@ -120,8 +120,15 @@ export const startInterviewResultSchema = z.object({
 });
 export type StartInterviewResult = z.infer<typeof startInterviewResultSchema>;
 
-/** Request body when submitting answers for grading. */
-export const submitAnswersRequestSchema = z.object({
-  answers: z.array(interviewAnswerSchema).min(1),
+/** Request body for one conversational turn — the answer to the current question. */
+export const interviewTurnRequestSchema = z.object({
+  answer: z.string().max(8000),
 });
-export type SubmitAnswersInput = z.infer<typeof submitAnswersRequestSchema>;
+export type InterviewTurnInput = z.infer<typeof interviewTurnRequestSchema>;
+
+/** Result of a turn: the updated interview, and whether the interview is over. */
+export const interviewTurnResultSchema = z.object({
+  interview: interviewSchema,
+  done: z.boolean(),
+});
+export type InterviewTurnResult = z.infer<typeof interviewTurnResultSchema>;
