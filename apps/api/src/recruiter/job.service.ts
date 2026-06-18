@@ -1,14 +1,16 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { JobPost as JobRow, Prisma, User } from "@prisma/client";
 import type { CandidateSearchResult, CreateJobInput, JobPost, UpdateJobInput } from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RecruiterService } from "./recruiter.service";
+import { SubscriptionService } from "../payments/subscription.service";
 
 @Injectable()
 export class JobService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly recruiter: RecruiterService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   /** The recruiter's own job posts, newest first (with match counts). */
@@ -21,6 +23,16 @@ export class JobService {
   }
 
   async create(user: User, input: CreateJobInput): Promise<JobPost> {
+    // Enforce the plan's active-job limit on the backend (never trust the UI).
+    const { allowed, limit, used } = await this.subscriptions.canCreateJob(user.id);
+    if (!allowed) {
+      throw new ForbiddenException(
+        limit === 0
+          ? "An active recruiter subscription is required to post jobs."
+          : `Your plan allows ${limit} active job posts (you have ${used}). Close one or upgrade your plan.`,
+      );
+    }
+
     const row = await this.prisma.jobPost.create({
       data: {
         recruiterId: user.id,
