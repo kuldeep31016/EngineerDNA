@@ -25,6 +25,11 @@ export class AnthropicService {
     return this.config.get<string>("ANTHROPIC_MODEL") || "claude-opus-4-8";
   }
 
+  /** A cheaper, faster model for high-frequency calls (e.g. interview turns). */
+  get fastModel(): string {
+    return this.config.get<string>("ANTHROPIC_FAST_MODEL") || "claude-haiku-4-5-20251001";
+  }
+
   private getClient(): Anthropic {
     const apiKey = this.config.get<string>("ANTHROPIC_API_KEY");
     if (!apiKey) {
@@ -42,6 +47,7 @@ export class AnthropicService {
     system: string;
     prompt: string;
     maxTokens?: number;
+    model?: string;
   }): Promise<T> {
     const jsonSchema = toJsonSchema(opts.schema, "Result");
     const prompt = `${opts.prompt}
@@ -50,7 +56,7 @@ Return ONLY a single JSON object — no markdown code fences, no commentary befo
 ${JSON.stringify(jsonSchema)}`;
 
     const response = await this.getClient().messages.create({
-      model: this.model,
+      model: opts.model ?? this.model,
       max_tokens: opts.maxTokens ?? 8000,
       system: opts.system,
       messages: [{ role: "user", content: prompt }],
