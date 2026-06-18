@@ -57,11 +57,24 @@ export class PaymentsService {
       throw new BadRequestException("Payment verification failed.");
     }
 
+    const sub = await this.subscriptions.activate(
+      user.id,
+      input.plan,
+      input.razorpayOrderId,
+      input.razorpayPaymentId,
+      payment.amount,
+    );
+    const invoiceCount = await this.prisma.payment.count({ where: { invoiceNumber: { not: null } } });
     await this.prisma.payment.update({
       where: { id: payment.id },
-      data: { status: "paid", paymentId: input.razorpayPaymentId, signature: input.razorpaySignature },
+      data: {
+        status: "paid",
+        paymentId: input.razorpayPaymentId,
+        signature: input.razorpaySignature,
+        subscriptionId: sub.id,
+        invoiceNumber: `INV-${1001 + invoiceCount}`,
+      },
     });
-    await this.subscriptions.activate(user.id, input.plan, input.razorpayOrderId, input.razorpayPaymentId, payment.amount);
 
     return this.subscriptions.getSubscription(user);
   }
