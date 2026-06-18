@@ -275,24 +275,31 @@ model RecruiterSubscription {
   currency          String    @default("INR")
   razorpayOrderId   String?
   razorpayPaymentId String?
+  startedAt         DateTime?
   createdAt         DateTime  @default(now())
   expiresAt         DateTime?
   updatedAt         DateTime  @updatedAt
+
+  payments          Payment[]
 }
 
 /// A payment record. Created when an order is placed; marked paid only after the
 /// Razorpay signature is verified on the backend.
 model Payment {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orderId   String
-  paymentId String?
-  signature String?
-  amount    Int
-  status    String   @default("created")
-  provider  String   @default("razorpay")
-  createdAt DateTime @default(now())
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId String?  @db.Uuid
+  subscription   RecruiterSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  orderId        String
+  paymentId      String?
+  signature      String?
+  amount         Int
+  currency       String   @default("INR")
+  status         String   @default("created")
+  invoiceNumber  String?  @unique
+  provider       String   @default("razorpay")
+  createdAt      DateTime @default(now())
 
   @@index([userId])
   @@index([orderId])
