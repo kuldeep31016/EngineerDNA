@@ -120,6 +120,7 @@ model User {
   interviews    Interview[]
   resumeReview  ResumeReview?
   roadmap       LearningRoadmap?
+  ossRecommendation OssRecommendation?
   shortlists    Shortlist[]     @relation("RecruiterShortlists")
   shortlistedBy Shortlist[]     @relation("CandidateShortlistedBy")
   recruiterProfile RecruiterProfile?
@@ -296,6 +297,18 @@ model ResumeReview {
   model            String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+/// Cached open-source recommendations for a user (Module 17). Rebuilt when the
+/// skill-set changes or the cache goes stale — keeps GitHub API calls down.
+model OssRecommendation {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @unique @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillsHash String
+  payload    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 /// A personalized learning roadmap for a target role (Module 13). One per user.
