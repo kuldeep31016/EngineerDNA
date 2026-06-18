@@ -1,9 +1,32 @@
-import { meResponseSchema, type AuthUser } from "@engineerdna/shared";
+import {
+  meResponseSchema,
+  type AuthUser,
+  type RecruiterLoginInput,
+  type RecruiterSignupInput,
+} from "@engineerdna/shared";
 import { apiFetch, API_BASE_URL } from "@/lib/api";
 
 /** GET /auth/me — current user, validated against the shared contract. */
 export async function fetchMe(): Promise<AuthUser> {
   const data = await apiFetch<unknown>("/auth/me");
+  return meResponseSchema.parse(data).user;
+}
+
+/** POST /auth/recruiter/signup — register a recruiter, returns the new user. */
+export async function recruiterSignup(input: RecruiterSignupInput): Promise<AuthUser> {
+  const data = await apiFetch<unknown>("/auth/recruiter/signup", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return meResponseSchema.parse(data).user;
+}
+
+/** POST /auth/recruiter/login — email + password sign-in for recruiters. */
+export async function recruiterLogin(input: RecruiterLoginInput): Promise<AuthUser> {
+  const data = await apiFetch<unknown>("/auth/recruiter/login", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
   return meResponseSchema.parse(data).user;
 }
 
