@@ -1,11 +1,5 @@
 import { z } from "zod";
 
-/**
- * Job Posts for the recruiter dashboard. A recruiter creates postings with
- * required skills; the platform matches them against VERIFIED candidate evidence
- * (deterministic — reuses the recruiter search). No LLM.
- */
-
 export const jobTypeSchema = z.enum(["FULL_TIME", "INTERNSHIP", "CONTRACT", "PART_TIME"]);
 export type JobType = z.infer<typeof jobTypeSchema>;
 
@@ -28,28 +22,81 @@ export const JOB_WORK_MODES: { value: JobWorkMode; label: string }[] = [
   { value: "HYBRID", label: "Hybrid" },
 ];
 
+/** Company info embedded in public job listings. */
+export const companySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  logo: z.string().nullable(),
+  website: z.string().nullable(),
+  description: z.string().nullable(),
+});
+export type Company = z.infer<typeof companySchema>;
+
+/** Recruiter's view of their own job (with match count + application count). */
 export const jobPostSchema = z.object({
   id: z.string(),
   title: z.string(),
   description: z.string(),
+  responsibilities: z.string().nullable(),
+  requirements: z.string().nullable(),
+  benefits: z.string().nullable(),
   skills: z.array(z.string()),
   location: z.string().nullable(),
   type: jobTypeSchema,
   workMode: jobWorkModeSchema,
   status: jobStatusSchema,
+  salaryMin: z.number().nullable(),
+  salaryMax: z.number().nullable(),
+  experience: z.string().nullable(),
+  deadline: z.string().nullable(),
   matchCount: z.number(),
+  applicationCount: z.number(),
+  company: companySchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
 export type JobPost = z.infer<typeof jobPostSchema>;
 
+/** Public (student) view of a job — includes hasApplied, no matchCount. */
+export const publicJobSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  responsibilities: z.string().nullable(),
+  requirements: z.string().nullable(),
+  benefits: z.string().nullable(),
+  skills: z.array(z.string()),
+  location: z.string().nullable(),
+  type: jobTypeSchema,
+  workMode: jobWorkModeSchema,
+  status: jobStatusSchema,
+  salaryMin: z.number().nullable(),
+  salaryMax: z.number().nullable(),
+  experience: z.string().nullable(),
+  deadline: z.string().nullable(),
+  applicationCount: z.number(),
+  hasApplied: z.boolean(),
+  company: companySchema.nullable(),
+  recruiterName: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type PublicJob = z.infer<typeof publicJobSchema>;
+
 export const createJobRequestSchema = z.object({
   title: z.string().trim().min(1).max(140),
   description: z.string().trim().min(1).max(8000),
+  responsibilities: z.string().trim().max(5000).optional(),
+  requirements: z.string().trim().max(5000).optional(),
+  benefits: z.string().trim().max(2000).optional(),
   skills: z.array(z.string().trim().min(1)).max(30).default([]),
   location: z.string().trim().max(140).optional(),
   type: jobTypeSchema.default("FULL_TIME"),
   workMode: jobWorkModeSchema.default("ONSITE"),
+  salaryMin: z.number().int().min(0).optional(),
+  salaryMax: z.number().int().min(0).optional(),
+  experience: z.string().trim().max(100).optional(),
+  deadline: z.string().datetime().optional(),
 });
 export type CreateJobInput = z.infer<typeof createJobRequestSchema>;
 

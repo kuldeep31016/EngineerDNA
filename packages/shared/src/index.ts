@@ -33,3 +33,5 @@ export * from "./contracts/portfolio";
 export * from "./contracts/reputation";
 export * from "./contracts/copilot";
 export * from "./contracts/subscription";
+export * from "./contracts/application";
+export * from "./contracts/notification";
