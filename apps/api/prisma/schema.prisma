@@ -86,6 +86,15 @@ enum JobStatus {
   CLOSED
 }
 
+enum ApplicationStatus {
+  APPLIED
+  VIEWED
+  SHORTLISTED
+  INTERVIEW
+  REJECTED
+  SELECTED
+}
+
 /// Where a piece of evidence came from. Source-typed so non-repo signals
 /// (interviews, learning, open source) can be first-class evidence later.
 enum EvidenceSource {
@@ -128,6 +137,9 @@ model User {
   jobs          JobPost[]       @relation("RecruiterJobs")
   subscription  RecruiterSubscription?
   payments      Payment[]
+  applications  JobApplication[] @relation("StudentApplications")
+  notifications Notification[]
+  company       Company?
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -244,20 +256,33 @@ model Interview {
 /// A job posting created by a recruiter. Required skills are matched against
 /// verified candidate evidence to surface qualified engineers.
 model JobPost {
-  id          String      @id @default(uuid()) @db.Uuid
-  recruiterId String      @db.Uuid
-  recruiter   User        @relation("RecruiterJobs", fields: [recruiterId], references: [id], onDelete: Cascade)
-  title       String
-  description String
-  skills      Json        @default("[]")
-  location    String?
-  type        JobType     @default(FULL_TIME)
-  workMode    JobWorkMode @default(ONSITE)
-  status      JobStatus   @default(OPEN)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id               String      @id @default(uuid()) @db.Uuid
+  recruiterId      String      @db.Uuid
+  recruiter        User        @relation("RecruiterJobs", fields: [recruiterId], references: [id], onDelete: Cascade)
+  companyId        String?     @db.Uuid
+  company          Company?    @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  title            String
+  description      String
+  responsibilities String?
+  requirements     String?
+  benefits         String?
+  skills           Json        @default("[]")
+  location         String?
+  type             JobType     @default(FULL_TIME)
+  workMode         JobWorkMode @default(ONSITE)
+  status           JobStatus   @default(OPEN)
+  salaryMin        Int?
+  salaryMax        Int?
+  experience       String?
+  deadline         DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  applications     JobApplication[]
 
   @@index([recruiterId])
+  @@index([companyId])
+  @@index([status])
 }
 
 /// A recruiter's paid subscription. One per user. Access to recruiter features
@@ -445,6 +470,55 @@ model RefreshToken {
   userId    String   @db.Uuid
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// A recruiter's company profile. Auto-created from RecruiterProfile on first
+/// job post. One company per recruiter for now — expandable to multi-company later.
+model Company {
+  id          String    @id @default(uuid()) @db.Uuid
+  recruiterId String    @unique @db.Uuid
+  recruiter   User      @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+  name        String
+  logo        String?
+  website     String?
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  jobs        JobPost[]
+}
+
+/// A student's job application. One application per job per student.
+model JobApplication {
+  id          String            @id @default(uuid()) @db.Uuid
+  jobId       String            @db.Uuid
+  job         JobPost           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  studentId   String            @db.Uuid
+  student     User              @relation("StudentApplications", fields: [studentId], references: [id], onDelete: Cascade)
+  // The resume submitted WITH this application (extracted client-side). Kept on
+  // the application itself — distinct from any saved passport/portfolio resume.
+  resumeText  String?
+  coverLetter String?
+  status      ApplicationStatus @default(APPLIED)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([jobId, studentId])
+  @@index([studentId])
+  @@index([jobId])
+}
+
+/// In-app notification for a user. Created when application status changes.
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([userId])
