@@ -4,6 +4,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { PrismaModule } from "./prisma/prisma.module";
+import { MailModule } from "./mail/mail.module";
 import { HealthModule } from "./health/health.module";
 import { UsersModule } from "./users/users.module";
 import { AuthModule } from "./auth/auth.module";
@@ -26,6 +27,9 @@ import { PortfolioModule } from "./portfolio/portfolio.module";
 import { ReputationModule } from "./reputation/reputation.module";
 import { CopilotModule } from "./copilot/copilot.module";
 import { PaymentsModule } from "./payments/payments.module";
+import { JobsModule } from "./jobs/jobs.module";
+import { ApplicationsModule } from "./applications/applications.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -42,6 +46,7 @@ import { PaymentsModule } from "./payments/payments.module";
     // Baseline rate limit (per IP). Auth + LLM routes tighten this further.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
+    MailModule,
     LlmModule,
     HealthModule,
     UsersModule,
@@ -64,6 +69,9 @@ import { PaymentsModule } from "./payments/payments.module";
     ReputationModule,
     CopilotModule,
     PaymentsModule,
+    JobsModule,
+    ApplicationsModule,
+    NotificationsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

@@ -6,6 +6,7 @@ import { JobService } from "./job.service";
 import { RankingService } from "./ranking.service";
 import { EvidenceModule } from "../evidence/evidence.module";
 import { PaymentsModule } from "../payments/payments.module";
+import { JobsModule } from "../jobs/jobs.module";
 
 /**
  * Recruiter Dashboard (Module 14). Searches verified public candidate profiles
@@ -13,7 +14,7 @@ import { PaymentsModule } from "../payments/payments.module";
  * DNA scorer from M8. Never exposes private repositories.
  */
 @Module({
-  imports: [EvidenceModule, PaymentsModule],
+  imports: [EvidenceModule, PaymentsModule, JobsModule],
   controllers: [RecruiterController, JobController],
   providers: [RecruiterService, JobService, RankingService],
   exports: [RecruiterService],
