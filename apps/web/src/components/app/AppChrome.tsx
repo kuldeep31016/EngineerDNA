@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { Sidebar } from "./Sidebar";
 import { RecruiterSidebar } from "./RecruiterSidebar";
+import { NotificationBell } from "./NotificationBell";
 
 // Routes that render without the app sidebar (their own full-page chrome).
 const BARE_ROUTES = new Set([
@@ -30,6 +31,10 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
       {isRecruiter ? <RecruiterSidebar /> : <Sidebar />}
+      {/* Floating notification bell, fixed to the top-right of the app. */}
+      <div className="fixed right-5 top-4 z-40">
+        <NotificationBell />
+      </div>
       <div className="md:pl-64">{children}</div>
     </div>
   );

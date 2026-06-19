@@ -6,6 +6,8 @@ import {
   Award,
   BadgeCheck,
   Bot,
+  Briefcase,
+  ClipboardList,
   Compass,
   Dna,
   FileText,
@@ -25,6 +27,8 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/jobs", label: "Job Board", icon: Briefcase },
+  { href: "/applications", label: "My Applications", icon: ClipboardList },
   { href: "/dna", label: "Developer DNA", icon: Dna },
   { href: "/reputation", label: "Reputation", icon: Award },
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },
