@@ -58,11 +58,11 @@ function InvoiceContent() {
           <span className="text-sm font-semibold">EngineerDNA</span>
         </div>
 
-        {/* Stripe-style receipt card (light, like a real invoice) */}
-        <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white text-zinc-900 shadow-xl">
+        {/* Stripe-style receipt card */}
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
           <div className="px-8 pb-7 pt-9 text-center">
             <div className="relative mx-auto h-14 w-12">
-              <div className="h-full w-full rounded-md border border-zinc-200 bg-zinc-50" />
+              <div className="h-full w-full rounded-md border border-border bg-secondary" />
               <div className="absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-3.5 w-3.5">
                   <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
@@ -70,19 +70,19 @@ function InvoiceContent() {
               </div>
             </div>
 
-            <p className="mt-4 text-sm text-zinc-500">{paid ? "Invoice paid" : `Invoice ${inv.status}`}</p>
-            <p className="mt-1 text-4xl font-bold tracking-tight">{money(inv.amount + inv.gst)}</p>
+            <p className="mt-4 text-sm text-muted-foreground">{paid ? "Invoice paid" : `Invoice ${inv.status}`}</p>
+            <p className="mt-1 text-4xl font-bold tracking-tight text-foreground">{money(inv.amount + inv.gst)}</p>
 
             <button
               onClick={() => setOpen((v) => !v)}
-              className="mx-auto mt-3 inline-flex items-center gap-1 text-sm font-medium text-indigo-600 hover:underline"
+              className="mx-auto mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
               View invoice and payment details
               <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
 
             {open && (
-              <div className="mt-4 space-y-2 rounded-lg bg-zinc-50 p-4 text-left text-sm">
+              <div className="mt-4 space-y-2 rounded-lg bg-secondary p-4 text-left text-sm">
                 {(
                   [
                     ["Billed to", inv.recruiterName],
@@ -94,15 +94,15 @@ function InvoiceContent() {
                   ] as [string, string][]
                 ).map(([k, v]) => (
                   <div key={k} className="flex justify-between gap-4">
-                    <span className="text-zinc-500">{k}</span>
-                    <span className="break-all text-right font-medium text-zinc-800">{v}</span>
+                    <span className="text-muted-foreground">{k}</span>
+                    <span className="break-all text-right font-medium text-foreground">{v}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="border-t border-zinc-200 px-8 py-5 text-sm">
+          <div className="border-t border-border px-8 py-5 text-sm">
             <Row k="Invoice number" v={inv.invoiceNumber} />
             <Row k="Payment date" v={fmtDate(inv.purchaseDate)} />
             <Row k="Payment method" v={inv.paymentMethod} />
@@ -111,7 +111,7 @@ function InvoiceContent() {
           <div className="px-8 pb-8">
             <button
               onClick={() => printToPdf(renderInvoiceHtml(inv))}
-              className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
               Download invoice
             </button>
@@ -129,8 +129,8 @@ function InvoiceContent() {
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex items-center justify-between gap-4 py-1.5">
-      <span className="text-zinc-500">{k}</span>
-      <span className="break-all text-right font-medium text-zinc-800">{v}</span>
+      <span className="text-muted-foreground">{k}</span>
+      <span className="break-all text-right font-medium text-foreground">{v}</span>
     </div>
   );
 }
