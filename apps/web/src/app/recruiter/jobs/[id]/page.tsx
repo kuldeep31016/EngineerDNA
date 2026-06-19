@@ -7,16 +7,26 @@ import {
   Bookmark,
   BookmarkCheck,
   ChevronDown,
+  ClipboardList,
+  ExternalLink,
+  FileSearch,
+  FolderGit2,
+  Github,
   MapPin,
   MessagesSquare,
   ShieldCheck,
   Trophy,
+  Users,
 } from "lucide-react";
-import type { JobPost, RankedCandidate } from "@engineerdna/shared";
+import type { JobPost, RankedCandidate, RecruiterApplicant } from "@engineerdna/shared";
+import { APPLICATION_STATUSES, type ApplicationStatus } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { addShortlist, removeShortlist } from "@/services/recruiter";
 import { getJob, getJobRanking } from "@/services/jobs";
+import { getJobApplications, updateApplicationStatus } from "@/services/applications";
+
+type Tab = "ranking" | "applications";
 
 function scoreColor(v: number): string {
   if (v >= 75) return "text-emerald-400";
@@ -32,12 +42,14 @@ function rankMedal(i: number): string {
   return ["text-amber-300", "text-zinc-300", "text-orange-300"][i] ?? "text-muted-foreground";
 }
 
-function RankingContent() {
+function JobDetailContent() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params.id;
+  const [tab, setTab] = useState<Tab>("ranking");
   const [job, setJob] = useState<JobPost | null>(null);
   const [candidates, setCandidates] = useState<RankedCandidate[] | null>(null);
+  const [applicants, setApplicants] = useState<RecruiterApplicant[] | null>(null);
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
 
@@ -50,6 +62,12 @@ function RankingContent() {
       })
       .catch(() => setCandidates([]));
   }, [id]);
+
+  useEffect(() => {
+    if (tab === "applications" && applicants === null) {
+      void getJobApplications(id).then(setApplicants).catch(() => setApplicants([]));
+    }
+  }, [tab, id, applicants]);
 
   function toggleOpen(cid: string) {
     setOpen((prev) => {
@@ -81,11 +99,19 @@ function RankingContent() {
     }
   }
 
-  if (!candidates) return <LoadingScreen label="Ranking candidates…" />;
+  async function changeStatus(applicationId: string, status: ApplicationStatus) {
+    await updateApplicationStatus(applicationId, status);
+    setApplicants((prev) =>
+      prev?.map((a) => (a.applicationId === applicationId ? { ...a, status } : a)) ?? prev,
+    );
+  }
+
+  if (!candidates) return <LoadingScreen label="Loading job details…" />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-8">
-      <div className="flex items-center gap-2.5">
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-2.5">
         <button
           onClick={() => router.push("/recruiter/jobs")}
           className="flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:text-foreground"
@@ -93,19 +119,18 @@ function RankingContent() {
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Trophy className="h-5 w-5" />
-        </span>
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold tracking-tight">{job?.title ?? "Ranked candidates"}</h1>
-          <p className="text-sm text-muted-foreground">
-            Ranked on verified evidence — every score explains why.
-          </p>
+          <h1 className="truncate text-2xl font-bold tracking-tight">
+            {job?.title ?? "Job details"}
+          </h1>
+          {job?.company && (
+            <p className="text-sm text-muted-foreground">{job.company.name}</p>
+          )}
         </div>
       </div>
 
       {job && job.skills.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-1.5">
+        <div className="mb-4 flex flex-wrap gap-1.5">
           {job.skills.map((s) => (
             <span key={s} className="rounded-full border border-border bg-secondary/50 px-2.5 py-0.5 text-xs">
               {s}
@@ -114,29 +139,296 @@ function RankingContent() {
         </div>
       )}
 
-      {candidates.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-border bg-card px-6 py-14 text-center">
-          <ShieldCheck className="mx-auto h-7 w-7 text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">
-            No verified engineers match these skills yet. Add candidates by making passports public with evidence.
-          </p>
+      {/* Tabs */}
+      <div className="mb-6 flex gap-1 rounded-xl border border-border bg-secondary/30 p-1">
+        {(
+          [
+            { key: "ranking" as Tab, label: "Ranked Candidates", icon: Trophy },
+            {
+              key: "applications" as Tab,
+              label: `Applications${job ? ` (${job.applicationCount})` : ""}`,
+              icon: ClipboardList,
+            },
+          ] as const
+        ).map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              tab === key
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Ranking tab */}
+      {tab === "ranking" &&
+        (candidates.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card px-6 py-14 text-center">
+            <ShieldCheck className="mx-auto h-7 w-7 text-muted-foreground" />
+            <p className="mt-2 text-sm text-muted-foreground">
+              No verified engineers match these skills yet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {candidates.map((c, i) => (
+              <RankedCard
+                key={c.id}
+                c={c}
+                rank={i + 1}
+                saved={saved.has(c.id)}
+                open={open.has(c.id)}
+                onToggleSave={() => toggleSave(c.id)}
+                onToggleOpen={() => toggleOpen(c.id)}
+              />
+            ))}
+          </div>
+        ))}
+
+      {/* Applications tab */}
+      {tab === "applications" &&
+        (applicants === null ? (
+          <LoadingScreen label="Loading applications…" />
+        ) : applicants.length === 0 ? (
+          <div className="rounded-xl border border-border bg-card px-6 py-14 text-center">
+            <Users className="mx-auto h-7 w-7 text-muted-foreground" />
+            <p className="mt-2 text-sm text-muted-foreground">No applications yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {applicants.map((a) => (
+              <ApplicantCard key={a.applicationId} applicant={a} onStatusChange={changeStatus} />
+            ))}
+          </div>
+        ))}
+    </main>
+  );
+}
+
+function matchColor(v: number): string {
+  if (v >= 70) return "text-emerald-400";
+  if (v >= 40) return "text-amber-400";
+  return "text-rose-400";
+}
+
+function ApplicantCard({
+  applicant: a,
+  onStatusChange,
+}: {
+  applicant: RecruiterApplicant;
+  onStatusChange: (id: string, status: ApplicationStatus) => Promise<void>;
+}) {
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const statusInfo = APPLICATION_STATUSES.find((s) => s.value === a.status);
+
+  async function change(status: ApplicationStatus) {
+    setLoading(true);
+    try {
+      await onStatusChange(a.applicationId, status);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      {/* Top row */}
+      <div className="flex items-start gap-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary">
+          {(a.name ?? a.email).charAt(0).toUpperCase()}
         </div>
-      ) : (
-        <div className="mt-6 space-y-3">
-          {candidates.map((c, i) => (
-            <RankedCard
-              key={c.id}
-              c={c}
-              rank={i + 1}
-              saved={saved.has(c.id)}
-              open={open.has(c.id)}
-              onToggleSave={() => toggleSave(c.id)}
-              onToggleOpen={() => toggleOpen(c.id)}
-            />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="font-medium">{a.name ?? "Candidate"}</p>
+            <span className={`text-xs font-medium ${statusInfo?.color ?? "text-muted-foreground"}`}>
+              {statusInfo?.label ?? a.status}
+            </span>
+          </div>
+          {a.headline && <p className="truncate text-sm text-muted-foreground">{a.headline}</p>}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {a.location && (
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {a.location}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3" /> {a.verifiedSkillCount} verified
+            </span>
+            <span className={`font-medium ${scoreColor(a.dnaScore)}`}>DNA {a.dnaScore}</span>
+            {!a.hasResume && <span className="text-amber-400">No resume</span>}
+          </div>
+        </div>
+        {/* Match score is the headline number */}
+        <div className="text-right">
+          <p className={`text-3xl font-bold tabular-nums ${matchColor(a.matchScore)}`}>{a.matchScore}%</p>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">job match</p>
+        </div>
+      </div>
+
+      {/* Skill coverage chips */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {a.evidenceSkills.map((s) => (
+          <span
+            key={`e-${s}`}
+            title="Proven in their repositories"
+            className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300"
+          >
+            {s} ✓
+          </span>
+        ))}
+        {a.resumeSkills
+          .filter((s) => !a.evidenceSkills.includes(s))
+          .map((s) => (
+            <span
+              key={`r-${s}`}
+              title="Mentioned in their resume (not yet proven in code)"
+              className="rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-300"
+            >
+              {s} · resume
+            </span>
+          ))}
+        {a.missingSkills.map((s) => (
+          <span
+            key={`m-${s}`}
+            title="No evidence or resume mention"
+            className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground line-through"
+          >
+            {s}
+          </span>
+        ))}
+      </div>
+
+      {/* Cover letter */}
+      {a.coverLetter && (
+        <div className="mt-3 rounded-lg border border-border bg-secondary/30 p-3 text-sm text-muted-foreground">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide">Cover letter</p>
+          <p className="line-clamp-3">{a.coverLetter}</p>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setReportOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <FileSearch className="h-3.5 w-3.5" />
+          Evidence report
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${reportOpen ? "rotate-180" : ""}`} />
+        </button>
+        {a.githubUsername && (
+          <a
+            href={`https://github.com/${a.githubUsername}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <Github className="h-3.5 w-3.5" /> GitHub
+          </a>
+        )}
+        {a.portfolioSlug && (
+          <a
+            href={`/p/${a.portfolioSlug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Portfolio
+          </a>
+        )}
+        <button
+          onClick={() => setStatusOpen((v) => !v)}
+          disabled={loading}
+          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+        >
+          Change status
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${statusOpen ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {statusOpen && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {APPLICATION_STATUSES.filter((s) => s.value !== a.status).map((s) => (
+            <button
+              key={s.value}
+              onClick={async () => {
+                await change(s.value);
+                setStatusOpen(false);
+              }}
+              className={`rounded-full border border-border px-3 py-1 text-xs font-medium transition-colors hover:bg-accent ${s.color}`}
+            >
+              → {s.label}
+            </button>
           ))}
         </div>
       )}
-    </main>
+
+      {/* Evidence report — the proof behind the match */}
+      {reportOpen && (
+        <div className="mt-3 space-y-3 border-t border-border pt-3">
+          <p className="text-xs text-muted-foreground">
+            <span className={`font-semibold ${matchColor(a.matchScore)}`}>{a.matchScore}% match</span>{" "}
+            = proven skills (70%) + resume keywords (30%). Evidence is verified from real public
+            repositories — no black box.
+          </p>
+
+          {a.matchedRepos.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Where they used the required skills
+              </p>
+              {a.matchedRepos.map((r) => (
+                <a
+                  key={r.name}
+                  href={r.htmlUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border border-border px-3 py-2 transition-colors hover:border-primary/40"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-sm font-medium">
+                      <FolderGit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      {r.name}
+                    </span>
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {r.language && <span>{r.language}</span>}
+                      {r.stars > 0 && <span>★ {r.stars}</span>}
+                      <ExternalLink className="h-3 w-3" />
+                    </span>
+                  </div>
+                  {r.description && (
+                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{r.description}</p>
+                  )}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {r.skills.map((s) => (
+                      <span
+                        key={s}
+                        className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                      >
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No public repositories prove the required skills yet
+              {a.resumeSkills.length > 0 ? " — matched on resume keywords only." : "."}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -241,10 +533,10 @@ function RankedCard({
   );
 }
 
-export default function JobRankingPage() {
+export default function JobDetailPage() {
   return (
     <RecruiterGate>
-      <RankingContent />
+      <JobDetailContent />
     </RecruiterGate>
   );
 }
