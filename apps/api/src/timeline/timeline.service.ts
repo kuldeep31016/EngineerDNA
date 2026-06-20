@@ -73,7 +73,7 @@ export class TimelineService {
     }
 
     let cumulative = 0;
-    const periods: TimelinePeriod[] = [...byYear.keys()]
+    const ascending: TimelinePeriod[] = [...byYear.keys()]
       .sort((a, b) => a - b)
       .map((year) => {
         const techs = byYear.get(year)!;
@@ -81,8 +81,11 @@ export class TimelineService {
         return { label: String(year), year, techs, cumulativeSkills: cumulative };
       });
 
-    const startYear = periods[0]!.year;
-    const endYear = periods[periods.length - 1]!.year;
+    const startYear = ascending[0]!.year;
+    const endYear = ascending[ascending.length - 1]!.year;
+
+    // Display most-recent year first (cumulative counts computed chronologically above).
+    const periods = [...ascending].reverse();
 
     return {
       available: true,

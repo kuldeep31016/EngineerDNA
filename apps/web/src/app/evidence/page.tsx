@@ -190,7 +190,7 @@ function Timeline({ data }: { data: DeveloperEvidence }) {
         <span className="text-xs text-muted-foreground">when you first used each technology</span>
       </div>
       <ol className="relative ml-2 border-l border-border">
-        {data.timeline.map((entry) => (
+        {[...data.timeline].reverse().map((entry) => (
           <li key={`${entry.technology}-${entry.firstSeenAt}`} className="mb-4 ml-4 last:mb-0">
             <span className="absolute -left-[5px] mt-1.5 h-2 w-2 rounded-full bg-primary" />
             <div className="flex items-center gap-2">
