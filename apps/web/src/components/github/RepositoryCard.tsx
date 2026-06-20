@@ -50,6 +50,17 @@ export function RepositoryCard({
               </>
             )}
           </Badge>
+          {repo.isFork && (
+            <Badge variant="outline">
+              <GitFork className="h-3 w-3" /> Fork
+            </Badge>
+          )}
+          {repo.ownCommits > 0 && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+              {repo.ownCommits >= 100 ? "100+" : repo.ownCommits} commit
+              {repo.ownCommits === 1 ? "" : "s"} by you
+            </span>
+          )}
         </div>
 
         {repo.description && (
