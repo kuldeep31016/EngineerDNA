@@ -38,7 +38,16 @@ function MessagesContent() {
 
   useEffect(() => {
     refresh();
+    // Poll the list so new conversations / last messages / unread stay current.
+    const t = setInterval(refresh, 4000);
+    return () => clearInterval(t);
   }, [refresh]);
+
+  function open(convoId: string) {
+    setActiveId(convoId);
+    // Clear this conversation's unread immediately in the list (WhatsApp-style).
+    setConvos((prev) => (prev ? prev.map((c) => (c.id === convoId ? { ...c, unread: 0 } : c)) : prev));
+  }
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-8">
@@ -71,7 +80,7 @@ function MessagesContent() {
             {convos.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setActiveId(c.id)}
+                onClick={() => open(c.id)}
                 className={`flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-accent ${
                   activeId === c.id ? "bg-primary/5" : ""
                 }`}
@@ -150,13 +159,34 @@ function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
     }
   }
 
+  // Fetch the conversation; opening/polling marks the other side's messages read
+  // on the server, so we tell the nav badge to refresh immediately (WhatsApp-style).
   const load = useCallback(() => {
-    getConversation(id).then(setConvo).catch(() => {});
+    getConversation(id)
+      .then((fresh) => {
+        setConvo((prev) => {
+          // Skip the state update when nothing changed — avoids re-render/scroll jank.
+          if (
+            prev &&
+            prev.messages.length === fresh.messages.length &&
+            prev.messages.at(-1)?.id === fresh.messages.at(-1)?.id &&
+            prev.status === fresh.status
+          ) {
+            return prev;
+          }
+          return fresh;
+        });
+        window.dispatchEvent(new Event("messages:refresh"));
+      })
+      .catch(() => {});
   }, [id]);
 
   useEffect(() => {
     setConvo(null);
     load();
+    // Poll for real-time delivery (a few seconds feels instant).
+    const t = setInterval(load, 3000);
+    return () => clearInterval(t);
   }, [load]);
 
   useEffect(() => {
