@@ -13,8 +13,10 @@ export interface ProctoringState {
   terminated: boolean;
   enterFullscreen: () => Promise<void>;
   dismissWarning: () => void;
-  registerFaceEvent: (kind: "noFace" | "multipleFace") => void;
+  registerVisionEvent: (kind: VisionEvent) => void;
 }
+
+export type VisionEvent = "noFace" | "multipleFace" | "lookAway" | "phone";
 
 const MAX_VIOLATIONS = 3;
 
@@ -41,6 +43,8 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
     focusLost: 0,
     noFaceEvents: 0,
     multipleFaceEvents: 0,
+    lookAwayEvents: 0,
+    phoneEvents: 0,
     terminated: false,
   });
   const [warning, setWarning] = useState<{ message: string; count: number; strike: boolean } | null>(null);
@@ -93,15 +97,17 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
 
   // Camera-vision events. Logged + warned, but deliberately NOT counted toward
   // auto-termination — vision can have false positives, so a human reviews them.
-  const registerFaceEvent = useCallback((kind: "noFace" | "multipleFace") => {
+  const registerVisionEvent = useCallback((kind: VisionEvent) => {
     if (terminatedRef.current) return;
-    if (kind === "noFace") {
-      setViolations((v) => ({ ...v, noFaceEvents: v.noFaceEvents + 1 }));
-      setWarning({ message: "No face detected — stay visible to the camera.", count: 0, strike: false });
-    } else {
-      setViolations((v) => ({ ...v, multipleFaceEvents: v.multipleFaceEvents + 1 }));
-      setWarning({ message: "Multiple people detected — only you should be visible.", count: 0, strike: false });
-    }
+    const map: Record<VisionEvent, { field: keyof ProctoringReport; message: string }> = {
+      noFace: { field: "noFaceEvents", message: "No face detected — stay visible to the camera." },
+      multipleFace: { field: "multipleFaceEvents", message: "Multiple people detected — only you should be visible." },
+      lookAway: { field: "lookAwayEvents", message: "Looking away detected — keep your eyes on the screen." },
+      phone: { field: "phoneEvents", message: "Phone detected — put it away to continue." },
+    };
+    const { field, message } = map[kind];
+    setViolations((v) => ({ ...v, [field]: (v[field] as number) + 1 }));
+    setWarning({ message, count: 0, strike: false });
   }, []);
 
   useEffect(() => {
@@ -169,6 +175,6 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
     terminated,
     enterFullscreen,
     dismissWarning,
-    registerFaceEvent,
+    registerVisionEvent,
   };
 }

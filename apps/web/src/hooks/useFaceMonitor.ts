@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-export type FaceEvent = "noFace" | "multipleFace";
+import type { VisionEvent } from "./useProctoring";
 
 export interface FaceMonitorState {
   supported: boolean; // model loaded and running
@@ -13,27 +12,36 @@ export interface FaceMonitorState {
 const TASKS_VISION_VERSION = "0.10.35";
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`;
 const MODEL_URL =
-  "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite";
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
 const CHECK_INTERVAL_MS = 1500; // run detection ~ every 1.5s (cheap, not per-frame)
-const CONSECUTIVE_TO_FLAG = 2; // require 2 readings in a row before flagging (debounce)
+const FACE_STREAK = 2; // consecutive readings before flagging no/multiple face
+const GAZE_STREAK = 3; // consecutive readings before flagging looking-away (~4.5s)
+const YAW_THRESHOLD = 0.13; // |nose offset / face width| beyond this = head turned
+
+// MediaPipe Face Mesh canonical landmark indices.
+const NOSE_TIP = 1;
+const FACE_LEFT = 234;
+const FACE_RIGHT = 454;
 
 /**
- * In-browser face monitoring for the proctored interview using MediaPipe Tasks
- * Vision (FaceDetector). 100% client-side and free — no frames leave the device.
+ * In-browser face + gaze monitoring using MediaPipe FaceLandmarker. One model
+ * gives BOTH the face count and the head landmarks we use to estimate whether
+ * the candidate is looking away. 100% client-side and free — frames never leave
+ * the device.
  *
- * It reports two events to `onEvent`, each debounced over CONSECUTIVE_TO_FLAG
- * readings to avoid false positives from a single blurry frame:
- *  - "noFace"       → camera sees nobody (candidate left or covered the camera)
- *  - "multipleFace" → more than one person is visible
+ * Emits (each debounced to avoid single-frame false positives):
+ *  - "noFace"       → nobody visible
+ *  - "multipleFace" → more than one person visible
+ *  - "lookAway"     → head turned away from the screen (sideways)
  *
- * Fully graceful: if the model/wasm can't load (offline, unsupported), the hook
- * silently stays `supported:false` and the rest of proctoring is unaffected.
+ * Fully graceful: if the model can't load, stays `supported:false` and the rest
+ * of proctoring is unaffected.
  */
 export function useFaceMonitor(
   videoRef: React.RefObject<HTMLVideoElement | null>,
   active: boolean,
-  onEvent: (e: FaceEvent) => void,
+  onEvent: (e: VisionEvent) => void,
 ): FaceMonitorState {
   const [supported, setSupported] = useState(false);
   const [faceCount, setFaceCount] = useState<number | null>(null);
@@ -44,21 +52,23 @@ export function useFaceMonitor(
     if (!active) return;
     let cancelled = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let detector: any = null;
+    let landmarker: any = null;
     let timer: ReturnType<typeof setInterval> | null = null;
     let noFaceStreak = 0;
     let multiFaceStreak = 0;
+    let gazeStreak = 0;
 
     (async () => {
       try {
         const vision = await import("@mediapipe/tasks-vision");
         const fileset = await vision.FilesetResolver.forVisionTasks(WASM_URL);
-        detector = await vision.FaceDetector.createFromOptions(fileset, {
+        landmarker = await vision.FaceLandmarker.createFromOptions(fileset, {
           baseOptions: { modelAssetPath: MODEL_URL, delegate: "GPU" },
           runningMode: "VIDEO",
+          numFaces: 3, // enough to tell "1" from "more than one"
         });
         if (cancelled) {
-          detector?.close?.();
+          landmarker?.close?.();
           return;
         }
         setSupported(true);
@@ -66,19 +76,22 @@ export function useFaceMonitor(
         timer = setInterval(() => {
           const video = videoRef.current;
           if (!video || video.readyState < 2 || video.videoWidth === 0) return;
-          let count = 0;
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let faces: any[] = [];
           try {
-            const res = detector.detectForVideo(video, performance.now());
-            count = res?.detections?.length ?? 0;
+            const res = landmarker.detectForVideo(video, performance.now());
+            faces = res?.faceLandmarks ?? [];
           } catch {
             return; // transient frame error — skip this tick
           }
+          const count = faces.length;
           setFaceCount(count);
 
           // Debounced "no face"
           if (count === 0) {
             noFaceStreak += 1;
-            if (noFaceStreak === CONSECUTIVE_TO_FLAG) onEventRef.current("noFace");
+            if (noFaceStreak === FACE_STREAK) onEventRef.current("noFace");
           } else {
             noFaceStreak = 0;
           }
@@ -86,13 +99,33 @@ export function useFaceMonitor(
           // Debounced "multiple faces"
           if (count > 1) {
             multiFaceStreak += 1;
-            if (multiFaceStreak === CONSECUTIVE_TO_FLAG) onEventRef.current("multipleFace");
+            if (multiFaceStreak === FACE_STREAK) onEventRef.current("multipleFace");
           } else {
             multiFaceStreak = 0;
           }
+
+          // Gaze: only when exactly one face is present.
+          if (count === 1) {
+            const lm = faces[0];
+            const nose = lm[NOSE_TIP];
+            const left = lm[FACE_LEFT];
+            const right = lm[FACE_RIGHT];
+            if (nose && left && right) {
+              const width = Math.abs(right.x - left.x) || 1;
+              const center = (left.x + right.x) / 2;
+              const yaw = (nose.x - center) / width; // ~0 facing camera
+              if (Math.abs(yaw) > YAW_THRESHOLD) {
+                gazeStreak += 1;
+                if (gazeStreak === GAZE_STREAK) onEventRef.current("lookAway");
+              } else {
+                gazeStreak = 0;
+              }
+            }
+          } else {
+            gazeStreak = 0;
+          }
         }, CHECK_INTERVAL_MS);
       } catch {
-        // Model/wasm failed to load — monitoring stays off, interview continues.
         if (!cancelled) setSupported(false);
       }
     })();
@@ -100,7 +133,7 @@ export function useFaceMonitor(
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
-      detector?.close?.();
+      landmarker?.close?.();
     };
   }, [active, videoRef]);
 
