@@ -66,8 +66,21 @@ import {
 type Phase = "setup" | "ready" | "live" | "report";
 
 const TOTAL_QUESTIONS = 6;
-// How long a candidate can pause (no new speech) before we auto-submit the answer.
-const SILENCE_MS = 3500;
+
+// Interview timing — all configurable here, never hardcoded inline.
+const TIMING = {
+  silenceMs: 3500, // pause after speaking before we submit the answer (Edge 4)
+  noResponseMs: 10000, // wait with no speech before a reminder / skip (Edge 1, 2)
+  maxAnswerMs: 120000, // hard cap on a single answer (Edge 5)
+  warnBeforeMs: 15000, // show "time running out" this long before the cap (Edge 5)
+};
+
+// Phrases that mean "repeat the question" (Edge 9) and "I'm finished" (Edge 11).
+const REPEAT_PHRASES = ["repeat", "can you repeat", "could you repeat", "pardon", "say that again", "didn't hear", "did not hear", "come again"];
+const DONE_PHRASES = ["i'm done", "im done", "i am done", "that's all", "thats all", "that's it", "thats it", "i'm finished", "im finished", "i am finished", "finished answering"];
+
+const isRepeatRequest = (t: string) => t.length <= 40 && REPEAT_PHRASES.some((p) => t.includes(p));
+const isDoneSignal = (t: string) => DONE_PHRASES.some((p) => t.endsWith(p));
 
 // The AI interviewer speaks a short intro once, before the first question.
 function introGreeting(name: string | null): string {
@@ -684,10 +697,14 @@ function Live({
   const wasListeningRef = useRef(false);
   const spokenRef = useRef<string>(""); // id of the question we've already spoken
   const introducedRef = useRef(false);
+  const noResponseCountRef = useRef(0); // reminders given for the current question
+  const repeatRef = useRef<() => void>(() => {});
   const [initializing, setInitializing] = useState(true);
+  const [timeWarning, setTimeWarning] = useState(false); // "answer almost too long"
 
   function startListening() {
     if (!autoMode || finishingRef.current) return;
+    setTimeWarning(false);
     stt.start(""); // fresh transcript for each question
   }
 
@@ -707,6 +724,7 @@ function Live({
     if (spokenRef.current === q.id) return;
     spokenRef.current = q.id;
     advancingRef.current = false;
+    noResponseCountRef.current = 0;
 
     const intro = introducedRef.current ? "" : `${introGreeting(interview.candidateName)} `;
     introducedRef.current = true;
@@ -742,6 +760,7 @@ function Live({
 
   function repeat() {
     stt.stop(); // never let TTS and STT run at the same time
+    setTimeWarning(false);
     setSpeaking(true);
     speak(q.prompt, {
       voice: selectedVoice,
@@ -752,14 +771,16 @@ function Live({
       },
     });
   }
+  repeatRef.current = repeat;
 
-  async function next() {
+  async function next(override?: string) {
     stt.stop();
     cancelSpeech();
     setErr(null);
+    setTimeWarning(false);
     setWorking("thinking");
     try {
-      const text = (answers[q.id] || stt.transcript || "").trim();
+      const text = (override ?? answers[q.id] ?? stt.transcript ?? "").trim();
       const res = await submitTurn(interview.id, text);
       if (res.done) {
         finishingRef.current = true;
@@ -787,13 +808,102 @@ function Live({
   }
   advanceRef.current = advance;
 
-  // Auto-advance: when the candidate pauses (~3.5s of no new words) after having
-  // said something, submit and move to the next question. No button to click.
+  // Auto-advance: when the candidate pauses (silenceMs of no new words) after
+  // having said something, submit and move on (Edge 4). No button to click.
   useEffect(() => {
     if (!autoMode || !stt.listening || !stt.transcript.trim()) return;
-    const t = setTimeout(() => advanceRef.current(), SILENCE_MS);
+    const t = setTimeout(() => advanceRef.current(), TIMING.silenceMs);
     return () => clearTimeout(t);
   }, [autoMode, stt.listening, stt.transcript]);
+
+  // Edge 9 & 11: spoken commands — "repeat the question" re-asks it; "I'm done"
+  // submits immediately without waiting for the silence timer.
+  useEffect(() => {
+    if (!autoMode || !stt.listening) return;
+    const t = stt.transcript.trim().toLowerCase();
+    if (!t) return;
+    if (isDoneSignal(t)) advanceRef.current();
+    else if (isRepeatRequest(t)) repeatRef.current();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stt.transcript, stt.listening]);
+
+  // Edge 1, 2 & 3: if the mic is open but nothing is said for noResponseMs, the
+  // AI gives a reminder and repeats the question; a second silence skips it.
+  // Speech arriving cancels the timer (Edge 3) since transcript is a dependency.
+  useEffect(() => {
+    if (!autoMode || !stt.listening || stt.transcript.trim()) return;
+    const t = setTimeout(() => {
+      if (advancingRef.current || finishingRef.current || working !== null) return;
+      noResponseCountRef.current += 1;
+      stt.stop();
+      setSpeaking(true);
+      if (noResponseCountRef.current >= 2) {
+        speak("It looks like you're unable to answer this right now. I'll mark it as skipped and we'll continue.", {
+          voice: selectedVoice,
+          onEnd: () => {
+            setSpeaking(false);
+            if (!advancingRef.current && !finishingRef.current) {
+              advancingRef.current = true;
+              void next("(No response — question skipped)");
+            }
+          },
+        });
+      } else {
+        speak(`I didn't hear a response. Let me repeat the question. ${q.prompt}`, {
+          voice: selectedVoice,
+          onEnd: () => {
+            setSpeaking(false);
+            startListening();
+          },
+        });
+      }
+    }, TIMING.noResponseMs);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, stt.listening, stt.transcript]);
+
+  // Edge 5: cap a single answer. Warn warnBeforeMs early, then politely move on.
+  useEffect(() => {
+    if (!autoMode || !stt.listening) return;
+    const warn = setTimeout(() => setTimeWarning(true), TIMING.maxAnswerMs - TIMING.warnBeforeMs);
+    const max = setTimeout(() => {
+      if (advancingRef.current || finishingRef.current) return;
+      setTimeWarning(false);
+      stt.stop();
+      setSpeaking(true);
+      speak("Thank you. Let's move on to the next question.", {
+        voice: selectedVoice,
+        onEnd: () => {
+          setSpeaking(false);
+          advanceRef.current();
+        },
+      });
+    }, TIMING.maxAnswerMs);
+    return () => {
+      clearTimeout(warn);
+      clearTimeout(max);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoMode, stt.listening, q.id]);
+
+  // Edge 12: leaving fullscreen pauses the interview (mic + voice stop); coming
+  // back re-asks the current question so nothing is lost.
+  const pausedRef = useRef(false);
+  useEffect(() => {
+    if (initializing || finishingRef.current) return;
+    if (!proc.isFullscreen) {
+      if (!pausedRef.current && (stt.listening || speaking)) {
+        pausedRef.current = true;
+        stt.stop();
+        cancelSpeech();
+        setSpeaking(false);
+      }
+    } else if (pausedRef.current) {
+      pausedRef.current = false;
+      repeatRef.current();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proc.isFullscreen, initializing]);
 
   // The Web Speech recogniser sometimes ends on its own. If it does with an
   // answer captured, advance; if nothing was said yet, quietly reopen the mic.
@@ -844,11 +954,11 @@ function Live({
           </div>
         )}
 
-        {/* Lost fullscreen — prompt to return */}
+        {/* Lost fullscreen — prompt to return (interview is paused) */}
         {!proc.isFullscreen && !proc.terminated && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-100">
             <span className="flex items-center gap-2">
-              <Maximize className="h-4 w-4" /> You left fullscreen. Return to continue safely.
+              <Maximize className="h-4 w-4" /> Interview paused — you left fullscreen. Return to continue.
             </span>
             <button
               onClick={proc.enterFullscreen}
@@ -856,6 +966,36 @@ function Live({
             >
               Re-enter fullscreen
             </button>
+          </div>
+        )}
+
+        {/* Persistent phone / extra-person banner — stays visible while flagged,
+            escalates to red after repeated detections (proctoring transparency). */}
+        {(() => {
+          const flags = proc.violations.phoneEvents + proc.violations.multipleFaceEvents;
+          if (flags === 0) return null;
+          const red = flags >= 3;
+          return (
+            <div
+              className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${
+                red ? "border-rose-500/50 bg-rose-500/20 text-rose-100" : "border-amber-500/40 bg-amber-500/15 text-amber-100"
+              }`}
+            >
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span className="flex-1">
+                {red
+                  ? "Repeated phone / extra-person detections — this interview has been flagged for review."
+                  : "A phone or another person was detected in view. Please remove it — repeated detection is reported."}
+              </span>
+            </div>
+          );
+        })()}
+
+        {/* Edge 5: answer time running out */}
+        {timeWarning && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" /> You have about {Math.round(TIMING.warnBeforeMs / 1000)} seconds
+            left for this answer.
           </div>
         )}
 
@@ -1022,7 +1162,7 @@ function Live({
                 <MicOff className="h-3.5 w-3.5" /> Voice needs Chrome or Edge — typing works everywhere.
               </span>
               <button
-                onClick={next}
+                onClick={() => next()}
                 disabled={working !== null}
                 className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${
                   isFinalQuestion ? "bg-emerald-600" : "bg-brand"
