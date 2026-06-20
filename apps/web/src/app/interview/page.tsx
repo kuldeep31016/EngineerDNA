@@ -52,6 +52,7 @@ import {
   speak,
 } from "@/lib/speech";
 import { extractPdfText } from "@/lib/resume";
+import { requestFullscreen } from "@/lib/fullscreen";
 import { getGithubStatus } from "@/services/github";
 import {
   getInterview,
@@ -64,6 +65,8 @@ import {
 type Phase = "setup" | "ready" | "live" | "report";
 
 const TOTAL_QUESTIONS = 6;
+// How long a candidate can pause (no new speech) before we auto-submit the answer.
+const SILENCE_MS = 3500;
 
 function scoreColor(v: number): string {
   if (v >= 75) return "text-emerald-400";
@@ -163,11 +166,7 @@ function InterviewContent() {
   // Begin the live interview — entering fullscreen here uses the click gesture
   // (requestFullscreen is only allowed from a user interaction).
   async function beginLive() {
-    try {
-      await document.documentElement.requestFullscreen();
-    } catch {
-      // windowed fallback — the interview still runs and proctoring still warns
-    }
+    await requestFullscreen();
     setPhase("live");
   }
 
@@ -664,10 +663,31 @@ function Live({
     return () => window.speechSynthesis.removeEventListener("voiceschanged", update);
   }, []);
 
-  // Speak each question as it appears.
+  // Hands-free when speech recognition is available (Chrome/Edge): the AI speaks,
+  // the mic opens automatically, and we advance on a natural pause. Browsers
+  // without STT fall back to typing + a manual Next button.
+  const autoMode = stt.supported;
+  const advancingRef = useRef(false);
+  const advanceRef = useRef<() => void>(() => {});
+  const wasListeningRef = useRef(false);
+
+  function startListening() {
+    cancelSpeech();
+    stt.start(""); // fresh transcript for each question
+  }
+
+  // Speak each question as it appears, then auto-open the mic (in auto mode).
   useEffect(() => {
+    advancingRef.current = false;
     setSpeaking(true);
-    speak(q.prompt, { voice: selectedVoice, onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) });
+    speak(q.prompt, {
+      voice: selectedVoice,
+      onStart: () => setSpeaking(true),
+      onEnd: () => {
+        setSpeaking(false);
+        if (autoMode) startListening();
+      },
+    });
     return () => cancelSpeech();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
@@ -694,23 +714,14 @@ function Live({
     speak(q.prompt, { voice: selectedVoice, onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) });
   }
 
-  function toggleRecord() {
-    if (stt.listening) {
-      stt.stop();
-    } else {
-      cancelSpeech();
-      setSpeaking(false);
-      stt.start(answers[q.id] ?? "");
-    }
-  }
-
   async function next() {
     stt.stop();
     cancelSpeech();
     setErr(null);
     setWorking("thinking");
     try {
-      const res = await submitTurn(interview.id, (answers[q.id] ?? "").trim());
+      const text = (answers[q.id] || stt.transcript || "").trim();
+      const res = await submitTurn(interview.id, text);
       if (res.done) {
         setWorking("grading");
         const graded = await gradeInterview(interview.id, proc.violations);
@@ -725,6 +736,36 @@ function Live({
       setWorking(null);
     }
   }
+
+  // Single guarded entry point so the silence timer and the recogniser-ended
+  // backup can never double-submit the same answer.
+  function advance() {
+    if (advancingRef.current || working !== null || finishingRef.current) return;
+    advancingRef.current = true;
+    void next();
+  }
+  advanceRef.current = advance;
+
+  // Auto-advance: when the candidate pauses (~3.5s of no new words) after having
+  // said something, submit and move to the next question. No button to click.
+  useEffect(() => {
+    if (!autoMode || !stt.listening || !stt.transcript.trim()) return;
+    const t = setTimeout(() => advanceRef.current(), SILENCE_MS);
+    return () => clearTimeout(t);
+  }, [autoMode, stt.listening, stt.transcript]);
+
+  // The Web Speech recogniser sometimes ends on its own. If it does with an
+  // answer captured, advance; if nothing was said yet, quietly reopen the mic.
+  useEffect(() => {
+    if (!autoMode) return;
+    const ended = wasListeningRef.current && !stt.listening;
+    wasListeningRef.current = stt.listening;
+    if (!ended || working !== null || advancingRef.current || finishingRef.current) return;
+    const hasAnswer = (answers[q.id] || stt.transcript || "").trim().length > 0;
+    if (hasAnswer) advanceRef.current();
+    else if (!speaking) stt.start("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stt.listening]);
 
   // Auto-terminate: once the proctor flags too many violations, end the session
   // and grade whatever was answered (the report records that it was terminated).
@@ -878,70 +919,89 @@ function Live({
         </div>
         <p className="text-base leading-relaxed">{q.prompt}</p>
 
-        <textarea
-          value={answers[q.id] ?? ""}
-          onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-          readOnly={stt.listening || working !== null}
-          rows={4}
-          placeholder={stt.supported ? "Tap the mic and answer out loud, or type here…" : "Type your answer here…"}
-          className="mt-3 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary/60 read-only:opacity-80"
-        />
-
         {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {stt.supported ? (
-            <button
-              onClick={toggleRecord}
-              disabled={working !== null}
-              className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
-                stt.listening
-                  ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/30"
-                  : "bg-brand text-white hover:opacity-90"
-              }`}
-            >
-              {stt.listening ? (
-                <>
-                  <MicOff className="h-4 w-4" /> Stop recording
-                </>
-              ) : (
-                <>
-                  <Mic className="h-4 w-4" /> Record answer
-                </>
-              )}
-            </button>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-              <MicOff className="h-3.5 w-3.5" /> Voice input needs Chrome or Edge — typing works everywhere.
-            </span>
-          )}
-
-          <button
-            onClick={next}
-            disabled={working !== null}
-            className={`ml-auto inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${
-              isFinalQuestion ? "bg-emerald-600" : "bg-brand"
-            }`}
-          >
-            {working === "thinking" ? (
+        {autoMode ? (
+          /* Hands-free: status only — the candidate's spoken words are NOT shown. */
+          <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-border bg-background/40 py-6 text-center">
+            {working === "grading" ? (
+              <p className="flex items-center gap-2 text-sm font-medium text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" /> Thank you! Preparing your report…
+              </p>
+            ) : working === "thinking" ? (
+              <p className="flex items-center gap-2 text-sm font-medium text-primary">
+                <Loader2 className="h-4 w-4 animate-spin" /> Got it — next question…
+              </p>
+            ) : speaking ? (
+              <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Volume2 className="h-4 w-4" /> Listen to the question…
+              </p>
+            ) : stt.listening ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Next question…
-              </>
-            ) : working === "grading" ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Grading…
-              </>
-            ) : isFinalQuestion ? (
-              <>
-                <PhoneOff className="h-4 w-4" /> Finish &amp; get report
+                <span className="relative flex h-12 w-12 items-center justify-center">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-rose-500/30" />
+                  <span className="flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/20 text-rose-300">
+                    <Mic className="h-5 w-5" />
+                  </span>
+                </span>
+                <p className="text-sm font-medium text-rose-300">Listening — answer out loud</p>
+                <p className="text-xs text-muted-foreground">I&apos;ll move on automatically when you pause.</p>
               </>
             ) : (
-              <>
-                Next question
-              </>
+              <p className="text-sm text-muted-foreground">Preparing…</p>
             )}
-          </button>
-        </div>
+
+            {/* Subtle manual override — the flow is automatic, but a pause can be ended early. */}
+            {stt.listening && (
+              <button
+                onClick={advance}
+                className="mt-1 text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+              >
+                {isFinalQuestion ? "Finish now" : "Done answering"}
+              </button>
+            )}
+          </div>
+        ) : (
+          /* Fallback (no speech recognition): type the answer + manual Next. */
+          <>
+            <textarea
+              value={answers[q.id] ?? ""}
+              onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+              readOnly={working !== null}
+              rows={4}
+              placeholder="Type your answer here…"
+              className="mt-3 w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-primary/60 read-only:opacity-80"
+            />
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <MicOff className="h-3.5 w-3.5" /> Voice needs Chrome or Edge — typing works everywhere.
+              </span>
+              <button
+                onClick={next}
+                disabled={working !== null}
+                className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60 ${
+                  isFinalQuestion ? "bg-emerald-600" : "bg-brand"
+                }`}
+              >
+                {working === "thinking" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Next…
+                  </>
+                ) : working === "grading" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> Grading…
+                  </>
+                ) : isFinalQuestion ? (
+                  <>
+                    <PhoneOff className="h-4 w-4" /> Finish &amp; get report
+                  </>
+                ) : (
+                  <>Next question</>
+                )}
+              </button>
+            </div>
+          </>
+        )}
       </div>
       </div>
     </div>
