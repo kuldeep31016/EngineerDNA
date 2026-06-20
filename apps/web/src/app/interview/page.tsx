@@ -134,6 +134,19 @@ function InterviewContent() {
     setStream(null);
   }, []);
 
+  // Re-acquire camera + mic after a disconnect (used by the Live reconnect flow).
+  const reacquireMedia = useCallback(async (): Promise<boolean> => {
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = media;
+      setStream(media);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   useEffect(
     () => () => {
       cancelSpeech();
@@ -258,7 +271,7 @@ function InterviewContent() {
       )}
 
       {phase === "live" && current && (
-        <Live interview={current} stream={stream} onComplete={handleComplete} />
+        <Live interview={current} stream={stream} onComplete={handleComplete} onReacquireMedia={reacquireMedia} />
       )}
 
       {phase === "report" && current && current.report && <Report interview={current} onDone={leave} />}
@@ -647,10 +660,12 @@ function Live({
   interview: initial,
   stream,
   onComplete,
+  onReacquireMedia,
 }: {
   interview: Interview;
   stream: MediaStream | null;
   onComplete: (graded: Interview) => void;
+  onReacquireMedia: () => Promise<boolean>;
 }) {
   const [interview, setInterview] = useState<Interview>(initial);
   const [idx, setIdx] = useState(0);
@@ -695,17 +710,36 @@ function Live({
   const advancingRef = useRef(false);
   const advanceRef = useRef<() => void>(() => {});
   const wasListeningRef = useRef(false);
+  const intentionalStopRef = useRef(false); // true when WE stop the recogniser
   const spokenRef = useRef<string>(""); // id of the question we've already spoken
   const introducedRef = useRef(false);
   const noResponseCountRef = useRef(0); // reminders given for the current question
   const repeatRef = useRef<() => void>(() => {});
   const [initializing, setInitializing] = useState(true);
   const [timeWarning, setTimeWarning] = useState(false); // "answer almost too long"
+  const [micDown, setMicDown] = useState(false); // mic disconnected
+  const [offline, setOffline] = useState(false); // internet lost
+  const [reconnecting, setReconnecting] = useState(false);
 
-  function startListening() {
+  function startListening(seed = "") {
     if (!autoMode || finishingRef.current) return;
     setTimeWarning(false);
-    stt.start(""); // fresh transcript for each question
+    stt.start(seed); // seed preserves a partial answer when resuming
+  }
+
+  // Stop the recogniser ON PURPOSE (so the auto-restart watcher can tell our
+  // stops apart from the browser ending recognition unexpectedly).
+  function stopListening() {
+    intentionalStopRef.current = true;
+    stt.stop();
+  }
+
+  // Re-acquire the camera + mic after a disconnect, then clear the mic pause.
+  async function reconnectMic() {
+    setReconnecting(true);
+    const ok = await onReacquireMedia();
+    setReconnecting(false);
+    if (ok) setMicDown(false);
   }
 
   // Brief "initializing" so voices finish loading and fullscreen settles before
@@ -759,7 +793,7 @@ function Live({
   }, [stt.transcript, stt.listening]);
 
   function repeat() {
-    stt.stop(); // never let TTS and STT run at the same time
+    stopListening(); // never let TTS and STT run at the same time
     setTimeWarning(false);
     setSpeaking(true);
     speak(q.prompt, {
@@ -774,7 +808,7 @@ function Live({
   repeatRef.current = repeat;
 
   async function next(override?: string) {
-    stt.stop();
+    stopListening();
     cancelSpeech();
     setErr(null);
     setTimeWarning(false);
@@ -835,7 +869,7 @@ function Live({
     const t = setTimeout(() => {
       if (advancingRef.current || finishingRef.current || working !== null) return;
       noResponseCountRef.current += 1;
-      stt.stop();
+      stopListening();
       setSpeaking(true);
       if (noResponseCountRef.current >= 2) {
         speak("It looks like you're unable to answer this right now. I'll mark it as skipped and we'll continue.", {
@@ -869,7 +903,7 @@ function Live({
     const max = setTimeout(() => {
       if (advancingRef.current || finishingRef.current) return;
       setTimeWarning(false);
-      stt.stop();
+      stopListening();
       setSpeaking(true);
       speak("Thank you. Let's move on to the next question.", {
         voice: selectedVoice,
@@ -886,35 +920,70 @@ function Live({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoMode, stt.listening, q.id]);
 
-  // Edge 12: leaving fullscreen pauses the interview (mic + voice stop); coming
-  // back re-asks the current question so nothing is lost.
-  const pausedRef = useRef(false);
+  // Detect a disconnected microphone — the stream's audio track "ends" (Edge 6).
+  useEffect(() => {
+    if (!stream) return;
+    const tracks = stream.getAudioTracks();
+    const onEnded = () => setMicDown(true);
+    tracks.forEach((t) => t.addEventListener("ended", onEnded));
+    return () => tracks.forEach((t) => t.removeEventListener("ended", onEnded));
+  }, [stream]);
+
+  // Detect internet loss/restore (Edge 7).
+  useEffect(() => {
+    const goOffline = () => setOffline(true);
+    const goOnline = () => setOffline(false);
+    window.addEventListener("offline", goOffline);
+    window.addEventListener("online", goOnline);
+    if (typeof navigator !== "undefined" && !navigator.onLine) setOffline(true);
+    return () => {
+      window.removeEventListener("offline", goOffline);
+      window.removeEventListener("online", goOnline);
+    };
+  }, []);
+
+  // Unified PAUSE/RESUME (Edge 6, 7, 12). The interview pauses whenever the
+  // candidate leaves fullscreen, the mic disconnects, or the connection drops.
+  // On resume: if they were mid-answer we reopen the mic seeded with their
+  // partial answer (transcript preserved); otherwise we re-ask the question.
+  const pauseReason: null | "fullscreen" | "mic" | "offline" =
+    !proc.isFullscreen ? "fullscreen" : micDown ? "mic" : offline ? "offline" : null;
+  const prevPauseRef = useRef<string | null>(null);
+  const pausedListeningRef = useRef(false);
   useEffect(() => {
     if (initializing || finishingRef.current) return;
-    if (!proc.isFullscreen) {
-      if (!pausedRef.current && (stt.listening || speaking)) {
-        pausedRef.current = true;
-        stt.stop();
-        cancelSpeech();
-        setSpeaking(false);
+    const prev = prevPauseRef.current;
+    prevPauseRef.current = pauseReason;
+    if (pauseReason && !prev) {
+      pausedListeningRef.current = stt.listening;
+      stopListening();
+      cancelSpeech();
+      setSpeaking(false);
+    } else if (!pauseReason && prev) {
+      if (pausedListeningRef.current) {
+        pausedListeningRef.current = false;
+        startListening(answers[q.id] || ""); // preserve the partial answer
+      } else {
+        repeatRef.current();
       }
-    } else if (pausedRef.current) {
-      pausedRef.current = false;
-      repeatRef.current();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proc.isFullscreen, initializing]);
+  }, [pauseReason, initializing]);
 
-  // The Web Speech recogniser sometimes ends on its own. If it does with an
-  // answer captured, advance; if nothing was said yet, quietly reopen the mic.
+  // Edge 8: the Web Speech recogniser sometimes ends on its own (Chrome caps a
+  // session). If WE didn't stop it and we're still mid-answer, restart it seeded
+  // with the transcript so the candidate continues without re-asking.
   useEffect(() => {
     if (!autoMode) return;
     const ended = wasListeningRef.current && !stt.listening;
     wasListeningRef.current = stt.listening;
-    if (!ended || working !== null || advancingRef.current || finishingRef.current) return;
-    const hasAnswer = (answers[q.id] || stt.transcript || "").trim().length > 0;
-    if (hasAnswer) advanceRef.current();
-    else if (!speaking) stt.start("");
+    if (!ended) return;
+    if (intentionalStopRef.current) {
+      intentionalStopRef.current = false;
+      return; // we stopped it on purpose — leave it
+    }
+    if (working !== null || advancingRef.current || finishingRef.current || pauseReason || speaking) return;
+    stt.start(answers[q.id] || stt.transcript || ""); // auto-restart, continue
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stt.listening]);
 
@@ -923,7 +992,7 @@ function Live({
   useEffect(() => {
     if (!proc.terminated || finishingRef.current) return;
     finishingRef.current = true;
-    stt.stop();
+    stopListening();
     cancelSpeech();
     setWorking("grading");
     gradeInterview(interview.id, proc.violations)
@@ -966,6 +1035,30 @@ function Live({
             >
               Re-enter fullscreen
             </button>
+          </div>
+        )}
+
+        {/* Microphone disconnected (Edge 6) — paused until reconnected */}
+        {micDown && proc.isFullscreen && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-rose-500/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-100">
+            <span className="flex items-center gap-2">
+              <MicOff className="h-4 w-4" /> Your microphone appears to be disconnected. Interview paused.
+            </span>
+            <button
+              onClick={reconnectMic}
+              disabled={reconnecting}
+              className="rounded-lg bg-rose-500/90 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {reconnecting ? "Reconnecting…" : "Reconnect microphone"}
+            </button>
+          </div>
+        )}
+
+        {/* Internet lost (Edge 7) — auto-resumes when the connection returns */}
+        {offline && proc.isFullscreen && (
+          <div className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-100">
+            <Loader2 className="h-4 w-4 animate-spin" /> Connection lost. Attempting to reconnect — your answer is
+            saved.
           </div>
         )}
 
