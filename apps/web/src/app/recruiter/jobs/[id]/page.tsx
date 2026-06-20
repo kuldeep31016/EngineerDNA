@@ -49,7 +49,7 @@ function JobDetailContent() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const [tab, setTab] = useState<Tab>("ranking");
+  const [tab, setTab] = useState<Tab>("applications");
   const [job, setJob] = useState<JobPost | null>(null);
   const [candidates, setCandidates] = useState<RankedCandidate[] | null>(null);
   const [applicants, setApplicants] = useState<RecruiterApplicant[] | null>(null);
@@ -148,12 +148,12 @@ function JobDetailContent() {
       <div className="mb-6 flex gap-1 rounded-xl border border-border bg-secondary/30 p-1">
         {(
           [
-            { key: "ranking" as Tab, label: "Ranked Candidates", icon: Trophy },
             {
               key: "applications" as Tab,
               label: `Applications${job ? ` (${job.applicationCount})` : ""}`,
               icon: ClipboardList,
             },
+            { key: "ranking" as Tab, label: "Ranked Candidates", icon: Trophy },
           ] as const
         ).map(({ key, label, icon: Icon }) => (
           <button
@@ -536,12 +536,6 @@ function ApplicantCard({
           Evidence report
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${reportOpen ? "rotate-180" : ""}`} />
         </button>
-        <button
-          onClick={onMessage}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <MessagesSquare className="h-3.5 w-3.5" /> Message
-        </button>
         {a.githubUsername && (
           <a
             href={`https://github.com/${a.githubUsername}`}
@@ -563,9 +557,15 @@ function ApplicantCard({
           </a>
         )}
         <button
+          onClick={onMessage}
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          <MessagesSquare className="h-3.5 w-3.5" /> Message
+        </button>
+        <button
           onClick={() => setStatusOpen((v) => !v)}
           disabled={loading}
-          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
         >
           Change status
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${statusOpen ? "rotate-180" : ""}`} />
@@ -722,13 +722,13 @@ function RankedCard({
         </button>
         <button
           onClick={onMessage}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
         >
           <MessagesSquare className="h-4 w-4" /> Message
         </button>
         <button
           onClick={onToggleSave}
-          className={`ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
             saved ? "border-primary/40 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"
           }`}
         >
