@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   ClipboardList,
@@ -10,11 +11,14 @@ import {
   Gauge,
   Github,
   Loader2,
+  Maximize,
   Mic,
   MicOff,
+  Monitor,
   PhoneOff,
   Play,
   RotateCcw,
+  ShieldCheck,
   Sparkles,
   Target,
   TrendingDown,
@@ -30,10 +34,12 @@ import {
   type Interview,
   type InterviewListItem,
   type InterviewRole,
+  type ProctoringReport,
   type StartInterviewInput,
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
+import { useProctoring } from "@/hooks/useProctoring";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import {
   cancelSpeech,
@@ -52,7 +58,7 @@ import {
   submitTurn,
 } from "@/services/interview";
 
-type Phase = "setup" | "live" | "report";
+type Phase = "setup" | "ready" | "live" | "report";
 
 const TOTAL_QUESTIONS = 6;
 
@@ -140,7 +146,7 @@ function InterviewContent() {
       streamRef.current = media;
       setStream(media);
       setCurrent(res.interview);
-      setPhase("live");
+      setPhase("ready"); // pre-flight: instructions + system check, then fullscreen
     } catch {
       media?.getTracks().forEach((t) => t.stop());
       setError(
@@ -149,6 +155,17 @@ function InterviewContent() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Begin the live interview — entering fullscreen here uses the click gesture
+  // (requestFullscreen is only allowed from a user interaction).
+  async function beginLive() {
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // windowed fallback — the interview still runs and proctoring still warns
+    }
+    setPhase("live");
   }
 
   function handleComplete(graded: Interview) {
@@ -209,6 +226,10 @@ function InterviewContent() {
         <Setup defaultName={user?.name ?? ""} busy={busy} history={history} onStart={requestStart} onOpen={openPast} />
       )}
 
+      {phase === "ready" && current && (
+        <ReadyCheck stream={stream} onBegin={beginLive} onCancel={leave} />
+      )}
+
       {phase === "live" && current && (
         <Live interview={current} stream={stream} onComplete={handleComplete} />
       )}
@@ -263,6 +284,110 @@ function RepoTipModal({
             className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent"
           >
             Start anyway
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Ready / system check (pre-flight) ---------------- */
+
+function ReadyCheck({
+  stream,
+  onBegin,
+  onCancel,
+}: {
+  stream: MediaStream | null;
+  onBegin: () => void;
+  onCancel: () => void;
+}) {
+  const cameraOk = Boolean(stream?.getVideoTracks().some((t) => t.readyState === "live"));
+  const micOk = Boolean(stream?.getAudioTracks().some((t) => t.readyState === "live"));
+  const fullscreenOk = typeof document !== "undefined" && Boolean(document.documentElement.requestFullscreen);
+
+  const checks = [
+    { label: "Camera", ok: cameraOk, hint: "Allow camera access" },
+    { label: "Microphone", ok: micOk, hint: "Allow microphone access" },
+    { label: "Fullscreen supported", ok: fullscreenOk, hint: "Use Chrome or Edge" },
+  ];
+
+  return (
+    <div className="mt-6 grid gap-4 md:grid-cols-2">
+      {/* Rules */}
+      <div className="rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <ShieldCheck className="h-5 w-5" />
+          </span>
+          <h2 className="text-lg font-semibold">Before you begin</h2>
+        </div>
+        <p className="mt-3 text-sm text-muted-foreground">
+          This is a proctored interview. To keep it fair, your session is monitored. Please:
+        </p>
+        <ul className="mt-3 space-y-2 text-sm">
+          {[
+            "Stay in fullscreen for the whole interview.",
+            "Do not switch tabs, minimize, or leave the window.",
+            "Keep your camera and microphone on.",
+            "Copy / paste and right-click are disabled.",
+          ].map((r) => (
+            <li key={r} className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+              <span className="text-muted-foreground">{r}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          After <strong>3 violations</strong> (exiting fullscreen, switching tabs, or leaving the window) your interview
+          ends automatically.
+        </div>
+      </div>
+
+      {/* System check */}
+      <div className="flex flex-col rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Monitor className="h-5 w-5" />
+          </span>
+          <h2 className="text-lg font-semibold">System check</h2>
+        </div>
+        <div className="mt-4 space-y-2">
+          {checks.map((c) => (
+            <div key={c.label} className="flex items-center justify-between rounded-lg border border-border bg-background/40 px-3 py-2.5">
+              <span className="text-sm">{c.label}</span>
+              {c.ok ? (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+                  <CheckCircle2 className="h-4 w-4" /> Ready
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-amber-300">
+                  <AlertTriangle className="h-4 w-4" /> {c.hint}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {!cameraOk && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Camera/mic are recommended for a realistic interview, but you can still begin without them.
+          </p>
+        )}
+
+        <div className="mt-auto flex gap-2 pt-5">
+          <button
+            onClick={onCancel}
+            className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onBegin}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <Maximize className="h-4 w-4" /> Begin interview (fullscreen)
           </button>
         </div>
       </div>
@@ -510,6 +635,8 @@ function Live({
   const [voiceURI, setVoiceURI] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const stt = useSpeechRecognition();
+  const finishingRef = useRef(false);
+  const proc = useProctoring(true, () => {}); // termination handled via the effect below
 
   const q = interview.questions[idx]!;
   const isFinalQuestion = interview.questions.length >= TOTAL_QUESTIONS && idx === interview.questions.length - 1;
@@ -581,7 +708,7 @@ function Live({
       const res = await submitTurn(interview.id, (answers[q.id] ?? "").trim());
       if (res.done) {
         setWorking("grading");
-        const graded = await gradeInterview(interview.id);
+        const graded = await gradeInterview(interview.id, proc.violations);
         onComplete(graded);
         return;
       }
@@ -594,22 +721,71 @@ function Live({
     }
   }
 
+  // Auto-terminate: once the proctor flags too many violations, end the session
+  // and grade whatever was answered (the report records that it was terminated).
+  useEffect(() => {
+    if (!proc.terminated || finishingRef.current) return;
+    finishingRef.current = true;
+    stt.stop();
+    cancelSpeech();
+    setWorking("grading");
+    gradeInterview(interview.id, proc.violations)
+      .then(onComplete)
+      .catch(() => setErr("The interview ended, but grading failed. Please try again."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proc.terminated]);
+
   const answeredCount = Object.values(answers).filter((a) => a.trim()).length;
   const progress = Math.min((idx + 1) / TOTAL_QUESTIONS, 1) * 100;
 
   return (
-    <div className="mt-6 space-y-4">
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">
-          Question {idx + 1} <span className="text-muted-foreground">of {TOTAL_QUESTIONS}</span>
-        </span>
-        <span className="text-xs text-muted-foreground">
-          {roleLabel(interview.role)} · {answeredCount} answered
-        </span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${progress}%` }} />
-      </div>
+    // Fullscreen overlay — covers the sidebar/header (z above app chrome) so the
+    // candidate sees ONLY the interview, matching real proctored test platforms.
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-background">
+      <div className="mx-auto max-w-4xl space-y-4 px-6 py-6">
+        {/* Anti-cheat warning toast */}
+        {proc.warning && (
+          <div className="sticky top-0 z-10 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-200 shadow-lg">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="flex-1">
+              <strong>Warning {Math.min(proc.warning.count, 3)}/3 — </strong>
+              {proc.warning.message}
+            </span>
+            <button onClick={proc.dismissWarning} aria-label="Dismiss" className="shrink-0 hover:text-white">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Lost fullscreen — prompt to return */}
+        {!proc.isFullscreen && !proc.terminated && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/15 px-4 py-3 text-sm text-amber-100">
+            <span className="flex items-center gap-2">
+              <Maximize className="h-4 w-4" /> You left fullscreen. Return to continue safely.
+            </span>
+            <button
+              onClick={proc.enterFullscreen}
+              className="rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+            >
+              Re-enter fullscreen
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-medium">
+            Question {idx + 1} <span className="text-muted-foreground">of {TOTAL_QUESTIONS}</span>
+          </span>
+          <span className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Proctored
+            </span>
+            <span>{roleLabel(interview.role)} · {answeredCount} answered</span>
+          </span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${progress}%` }} />
+        </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card p-6 text-center">
@@ -739,6 +915,7 @@ function Live({
           </button>
         </div>
       </div>
+      </div>
     </div>
   );
 }
@@ -763,6 +940,53 @@ function Orb({ speaking, thinking }: { speaking: boolean; thinking: boolean }) {
 }
 
 /* ---------------- Report ---------------- */
+
+/** Integrity / proctoring summary on the report — what the recruiter trusts. */
+function IntegrityPanel({ p }: { p: ProctoringReport }) {
+  const clean = p.fullscreenExits + p.tabSwitches + p.focusLost === 0;
+  const stats = [
+    { label: "Fullscreen exits", value: p.fullscreenExits },
+    { label: "Tab switches", value: p.tabSwitches },
+    { label: "Window left", value: p.focusLost },
+  ];
+  return (
+    <div
+      className={`rounded-xl border p-5 ${
+        p.terminated
+          ? "border-rose-500/40 bg-rose-500/10"
+          : clean
+            ? "border-emerald-500/30 bg-emerald-500/5"
+            : "border-amber-500/30 bg-amber-500/5"
+      }`}
+    >
+      <div className="mb-3 flex items-center gap-2.5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <ShieldCheck className="h-4 w-4" />
+        </span>
+        <h3 className="text-sm font-semibold">Interview integrity</h3>
+        <span
+          className={`ml-auto rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            p.terminated
+              ? "bg-rose-500/15 text-rose-300"
+              : clean
+                ? "bg-emerald-500/15 text-emerald-300"
+                : "bg-amber-500/15 text-amber-300"
+          }`}
+        >
+          {p.terminated ? "Ended on violations" : clean ? "Clean session" : "Flagged"}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-lg border border-border bg-background/40 px-3 py-2.5 text-center">
+            <p className="text-2xl font-bold tabular-nums">{s.value}</p>
+            <p className="text-[11px] text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function Report({ interview, onDone }: { interview: Interview; onDone: () => void }) {
   const report = interview.report!;
@@ -791,6 +1015,8 @@ function Report({ interview, onDone }: { interview: Interview; onDone: () => voi
         </div>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{report.summary}</p>
       </div>
+
+      {interview.proctoring && <IntegrityPanel p={interview.proctoring} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <ListCard icon={TrendingUp} title="Strengths" items={report.strengths} tone="emerald" />

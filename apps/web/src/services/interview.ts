@@ -6,6 +6,7 @@ import {
   type Interview,
   type InterviewListItem,
   type InterviewTurnResult,
+  type ProctoringReport,
   type StartInterviewInput,
   type StartInterviewResult,
 } from "@engineerdna/shared";
@@ -31,10 +32,13 @@ export async function submitTurn(id: string, answer: string): Promise<InterviewT
   );
 }
 
-/** POST — grade the conversation and get the report. */
-export async function gradeInterview(id: string): Promise<Interview> {
+/** POST — grade the conversation (with the proctoring summary) and get the report. */
+export async function gradeInterview(id: string, proctoring?: ProctoringReport): Promise<Interview> {
   return interviewSchema.parse(
-    await apiFetch<unknown>(`/interview/${id}/grade`, { method: "POST" }),
+    await apiFetch<unknown>(`/interview/${id}/grade`, {
+      method: "POST",
+      body: JSON.stringify({ proctoring }),
+    }),
   );
 }
 
