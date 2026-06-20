@@ -49,6 +49,7 @@ import {
   isSpeechSynthesisSupported,
   listEnglishVoices,
   pickPreferredVoice,
+  primeSpeech,
   speak,
 } from "@/lib/speech";
 import { extractPdfText } from "@/lib/resume";
@@ -67,6 +68,14 @@ type Phase = "setup" | "ready" | "live" | "report";
 const TOTAL_QUESTIONS = 6;
 // How long a candidate can pause (no new speech) before we auto-submit the answer.
 const SILENCE_MS = 3500;
+
+// The AI interviewer speaks a short intro once, before the first question.
+function introGreeting(name: string | null): string {
+  const who = name?.split(" ")[0] || "there";
+  return `Hello ${who}. I'm Ava, your EngineerDNA interviewer. Answer each question naturally — when you finish, just pause and I'll continue. Let's begin.`;
+}
+const FINAL_MESSAGE =
+  "Thank you for completing the EngineerDNA interview. Your responses have been recorded, and your report is being generated.";
 
 function scoreColor(v: number): string {
   if (v >= 75) return "text-emerald-400";
@@ -163,9 +172,10 @@ function InterviewContent() {
     }
   }
 
-  // Begin the live interview — entering fullscreen here uses the click gesture
-  // (requestFullscreen is only allowed from a user interaction).
+  // Begin the live interview — both fullscreen and speech must be unlocked from
+  // the click gesture, so we prime them here before switching to the live phase.
   async function beginLive() {
+    primeSpeech(); // unlock TTS on the user gesture so the AI can speak
     await requestFullscreen();
     setPhase("live");
   }
@@ -672,27 +682,46 @@ function Live({
   const advancingRef = useRef(false);
   const advanceRef = useRef<() => void>(() => {});
   const wasListeningRef = useRef(false);
+  const spokenRef = useRef<string>(""); // id of the question we've already spoken
+  const introducedRef = useRef(false);
+  const [initializing, setInitializing] = useState(true);
 
   function startListening() {
-    cancelSpeech();
+    if (!autoMode || finishingRef.current) return;
     stt.start(""); // fresh transcript for each question
   }
 
-  // Speak each question as it appears, then auto-open the mic (in auto mode).
+  // Brief "initializing" so voices finish loading and fullscreen settles before
+  // the AI speaks — mirrors a real interview platform's connect screen.
   useEffect(() => {
+    const t = setTimeout(() => setInitializing(false), 1400);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Ask each question EXACTLY ONCE, then auto-open the mic. The id guard makes
+  // this safe against React StrictMode's mount→unmount→remount in dev (which
+  // would otherwise cancel the speech). We intentionally do NOT cancel on
+  // cleanup — speak() already cancels the previous question before the next one.
+  useEffect(() => {
+    if (initializing) return;
+    if (spokenRef.current === q.id) return;
+    spokenRef.current = q.id;
     advancingRef.current = false;
+
+    const intro = introducedRef.current ? "" : `${introGreeting(interview.candidateName)} `;
+    introducedRef.current = true;
+
     setSpeaking(true);
-    speak(q.prompt, {
+    speak(intro + q.prompt, {
       voice: selectedVoice,
       onStart: () => setSpeaking(true),
       onEnd: () => {
         setSpeaking(false);
-        if (autoMode) startListening();
+        startListening();
       },
     });
-    return () => cancelSpeech();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx]);
+  }, [initializing, q.id]);
 
   function changeVoice(uri: string) {
     setVoiceURI(uri);
@@ -712,8 +741,16 @@ function Live({
   }, [stt.transcript, stt.listening]);
 
   function repeat() {
+    stt.stop(); // never let TTS and STT run at the same time
     setSpeaking(true);
-    speak(q.prompt, { voice: selectedVoice, onStart: () => setSpeaking(true), onEnd: () => setSpeaking(false) });
+    speak(q.prompt, {
+      voice: selectedVoice,
+      onStart: () => setSpeaking(true),
+      onEnd: () => {
+        setSpeaking(false);
+        startListening();
+      },
+    });
   }
 
   async function next() {
@@ -725,7 +762,9 @@ function Live({
       const text = (answers[q.id] || stt.transcript || "").trim();
       const res = await submitTurn(interview.id, text);
       if (res.done) {
+        finishingRef.current = true;
         setWorking("grading");
+        if (autoMode) speak(FINAL_MESSAGE, { voice: selectedVoice }); // spoken sign-off
         const graded = await gradeInterview(interview.id, proc.violations);
         onComplete(graded);
         return;
@@ -926,7 +965,11 @@ function Live({
         {autoMode ? (
           /* Hands-free: status only — the candidate's spoken words are NOT shown. */
           <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-border bg-background/40 py-6 text-center">
-            {working === "grading" ? (
+            {initializing ? (
+              <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Connecting your AI interviewer…
+              </p>
+            ) : working === "grading" ? (
               <p className="flex items-center gap-2 text-sm font-medium text-primary">
                 <Loader2 className="h-4 w-4 animate-spin" /> Thank you! Preparing your report…
               </p>

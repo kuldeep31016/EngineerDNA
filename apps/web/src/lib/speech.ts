@@ -69,3 +69,22 @@ export function speak(
 export function cancelSpeech(): void {
   if (isSpeechSynthesisSupported()) window.speechSynthesis.cancel();
 }
+
+/**
+ * "Unlock" speech synthesis from inside a user gesture (a click). Some browsers
+ * block speech that isn't tied to a user interaction, and `speechSynthesis` can
+ * get stuck after navigating/entering fullscreen. Speaking a silent utterance on
+ * the click primes it so later `speak()` calls reliably play.
+ */
+export function primeSpeech(): void {
+  if (!isSpeechSynthesisSupported()) return;
+  try {
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.resume();
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+  } catch {
+    // ignore — speak() falls back gracefully
+  }
+}
