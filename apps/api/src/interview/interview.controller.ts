@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import type { User } from "@prisma/client";
 import {
+  gradeInterviewRequestSchema,
   interviewTurnRequestSchema,
   startInterviewRequestSchema,
+  type GradeInterviewInput,
   type Interview,
   type InterviewListItem,
   type InterviewTurnInput,
@@ -54,7 +56,11 @@ export class InterviewController {
 
   /** POST /api/interview/:id/grade — grade the conversation and return a report. */
   @Post(":id/grade")
-  grade(@CurrentUser() user: User, @Param("id") id: string): Promise<Interview> {
-    return this.interview.gradeInterview(user, id);
+  grade(
+    @CurrentUser() user: User,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(gradeInterviewRequestSchema)) body: GradeInterviewInput,
+  ): Promise<Interview> {
+    return this.interview.gradeInterview(user, id, body.proctoring);
   }
 }

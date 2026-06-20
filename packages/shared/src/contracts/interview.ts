@@ -76,6 +76,20 @@ export const INTERVIEW_ROLES: { value: InterviewRole; label: string }[] = [
   { value: "data", label: "Data Engineer" },
 ];
 
+/**
+ * Anti-cheat / integrity signals captured in the browser during a proctored
+ * interview. Counts of detected violations (we detect & log — browsers can't
+ * truly lock a tab). `terminated` is true when the session auto-ended on too
+ * many violations.
+ */
+export const proctoringReportSchema = z.object({
+  fullscreenExits: z.number().default(0),
+  tabSwitches: z.number().default(0),
+  focusLost: z.number().default(0),
+  terminated: z.boolean().default(false),
+});
+export type ProctoringReport = z.infer<typeof proctoringReportSchema>;
+
 /** A full interview record. */
 export const interviewSchema = z.object({
   id: z.string(),
@@ -86,6 +100,7 @@ export const interviewSchema = z.object({
   questions: z.array(interviewQuestionSchema),
   answers: z.array(interviewAnswerSchema),
   report: interviewReportSchema.nullable(),
+  proctoring: proctoringReportSchema.nullable().default(null),
   overallScore: z.number().nullable(),
   createdAt: z.string(),
   evaluatedAt: z.string().nullable(),
@@ -132,3 +147,9 @@ export const interviewTurnResultSchema = z.object({
   done: z.boolean(),
 });
 export type InterviewTurnResult = z.infer<typeof interviewTurnResultSchema>;
+
+/** Grade request — optionally carries the proctoring summary from the session. */
+export const gradeInterviewRequestSchema = z.object({
+  proctoring: proctoringReportSchema.optional(),
+});
+export type GradeInterviewInput = z.infer<typeof gradeInterviewRequestSchema>;

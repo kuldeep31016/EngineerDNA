@@ -3,12 +3,14 @@ import type { Interview as InterviewRow, Prisma, User } from "@prisma/client";
 import { z } from "zod";
 import {
   interviewReportSchema,
+  proctoringReportSchema,
   type Interview,
   type InterviewAnswer,
   type InterviewListItem,
   type InterviewQuestion,
   type InterviewReport,
   type InterviewRole,
+  type ProctoringReport,
   type InterviewTurnResult,
   type StartInterviewInput,
   type StartInterviewResult,
@@ -163,8 +165,9 @@ export class InterviewService {
     return { interview: toContract(updated), done: false };
   }
 
-  /** Grade the full conversation in one call and store the report. */
-  async gradeInterview(user: User, id: string): Promise<Interview> {
+  /** Grade the full conversation in one call and store the report. The optional
+   *  proctoring summary (captured client-side) is persisted alongside it. */
+  async gradeInterview(user: User, id: string, proctoring?: ProctoringReport): Promise<Interview> {
     const row = await this.requireOwned(user, id);
     if (row.status === "EVALUATED") return toContract(row);
 
@@ -182,6 +185,7 @@ export class InterviewService {
       data: {
         status: "EVALUATED",
         report: report as unknown as Prisma.InputJsonValue,
+        proctoring: (proctoring ?? undefined) as unknown as Prisma.InputJsonValue,
         overallScore: Math.round(report.overallScore),
         evaluatedAt: new Date(),
       },
@@ -230,6 +234,7 @@ function toContract(row: InterviewRow): Interview {
     questions: (row.questions as unknown as InterviewQuestion[]) ?? [],
     answers: (row.answers as unknown as InterviewAnswer[]) ?? [],
     report: row.report ? interviewReportSchema.parse(row.report) : null,
+    proctoring: row.proctoring ? proctoringReportSchema.parse(row.proctoring) : null,
     overallScore: row.overallScore,
     createdAt: row.createdAt.toISOString(),
     evaluatedAt: row.evaluatedAt ? row.evaluatedAt.toISOString() : null,

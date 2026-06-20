@@ -251,6 +251,9 @@ model Interview {
   questions    Json            @default("[]")
   answers      Json            @default("[]")
   report       Json?
+  // Anti-cheat / integrity signals captured in the browser (fullscreen exits,
+  // tab switches, focus loss, whether the session was auto-terminated).
+  proctoring   Json?
   overallScore Int?
   model        String?
   createdAt    DateTime        @default(now())
