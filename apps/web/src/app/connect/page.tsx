@@ -14,7 +14,7 @@ const C = {
   line2: "rgba(255,255,255,.05)",
   tx: "#FAFAFA",
   tx2: "#A1A1AA",
-  tx3: "#6E6E78",
+  tx3: "#8E8E99",
 };
 
 const GitHubIcon = ({ size = 18, fill = "#fff" }: { size?: number; fill?: string }) => (

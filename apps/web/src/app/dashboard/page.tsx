@@ -25,7 +25,7 @@ const C = {
   line2: "rgba(255,255,255,.05)",
   tx: "#FAFAFA",
   tx2: "#A1A1AA",
-  tx3: "#6E6E78",
+  tx3: "#8E8E99",
   ind: "#A5B4FC",
   grn: "#6EE7B7",
 };
@@ -67,7 +67,7 @@ function DashboardContent() {
   return (
     <div className="min-h-screen">
       {/* Topbar */}
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-4" style={{ borderColor: C.line2 }}>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-4 md:pr-20" style={{ borderColor: C.line2 }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-.02em" }}>Developer DNA</div>
           <div style={{ fontSize: 12.5, color: C.tx3 }}>
@@ -118,7 +118,7 @@ function DashboardContent() {
               <div className="flex flex-wrap items-center gap-4" style={{ fontSize: 12.5, color: C.tx3 }}>
                 {handle && (
                   <span className="flex items-center gap-1.5">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#6E6E78"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.22-3.37-1.22-.46-1.18-1.11-1.49-1.11-1.49-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.3 9.3 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.35 4.8-4.58 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z" /></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#8E8E99"><path d="M12 2C6.48 2 2 6.58 2 12.25c0 4.53 2.87 8.37 6.84 9.73.5.1.68-.22.68-.49v-1.7c-2.78.62-3.37-1.22-3.37-1.22-.46-1.18-1.11-1.49-1.11-1.49-.91-.63.07-.62.07-.62 1 .07 1.53 1.05 1.53 1.05.89 1.57 2.34 1.12 2.91.85.09-.66.35-1.12.63-1.37-2.22-.26-4.56-1.14-4.56-5.06 0-1.12.39-2.03 1.03-2.75-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.05a9.3 9.3 0 0 1 5 0c1.91-1.32 2.75-1.05 2.75-1.05.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.75 0 3.93-2.35 4.8-4.58 5.05.36.32.68.94.68 1.9v2.82c0 .27.18.6.69.49A10.02 10.02 0 0 0 22 12.25C22 6.58 17.52 2 12 2Z" /></svg>
                     @{handle}
                   </span>
                 )}

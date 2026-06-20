@@ -8,7 +8,7 @@ const C = {
   line2: "rgba(255,255,255,.05)",
   tx: "#FAFAFA",
   tx2: "#A1A1AA",
-  tx3: "#6E6E78",
+  tx3: "#8E8E99",
   ind: "#6366F1",
   vio: "#8B5CF6",
   indText: "#A5B4FC",
