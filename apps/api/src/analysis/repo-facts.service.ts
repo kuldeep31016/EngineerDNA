@@ -105,4 +105,17 @@ export class RepoFactsService {
       readme: readme ? readme.slice(0, MAX_README_CHARS) : null,
     };
   }
+
+  /**
+   * The repository's real file paths (noise-filtered) for rendering a tree.
+   * Deterministic — straight from the GitHub API, no LLM. Capped so very large
+   * repos stay responsive; the cap is reported back as `truncated`.
+   */
+  async listFiles(token: string, repo: Repository): Promise<{ paths: string[]; truncated: boolean }> {
+    const branch = repo.defaultBranch ?? "main";
+    const rawPaths = await this.github.getFileTree(token, repo.fullName, branch);
+    const filtered = rawPaths.filter((p) => !isNoise(p)).sort();
+    const CAP = 1500;
+    return { paths: filtered.slice(0, CAP), truncated: filtered.length > CAP };
+  }
 }

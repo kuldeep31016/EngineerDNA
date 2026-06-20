@@ -45,3 +45,11 @@ export const repositoryAnalysisSchema = z.object({
   updatedAt: z.string(),
 });
 export type RepositoryAnalysis = z.infer<typeof repositoryAnalysisSchema>;
+
+/** A repository's real file tree (flat paths from the GitHub API — no LLM).
+ *  The client builds the nested, expandable tree from these paths. */
+export const repoTreeSchema = z.object({
+  paths: z.array(z.string()),
+  truncated: z.boolean().default(false),
+});
+export type RepoTree = z.infer<typeof repoTreeSchema>;

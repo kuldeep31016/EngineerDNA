@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Param, Post, UseGuards } from "@nestjs/common";
 import type { User } from "@prisma/client";
-import type { RepositoryAnalysis } from "@engineerdna/shared";
+import type { RepoTree, RepositoryAnalysis } from "@engineerdna/shared";
 import { AnalysisService } from "./analysis.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
@@ -15,6 +15,12 @@ export class AnalysisController {
   @Post(":id/analyze")
   start(@CurrentUser() user: User, @Param("id") id: string): Promise<RepositoryAnalysis> {
     return this.analysisService.startAnalysis(user, id);
+  }
+
+  /** GET /api/github/repositories/:id/tree — real file tree (no LLM). */
+  @Get(":id/tree")
+  getTree(@CurrentUser() user: User, @Param("id") id: string): Promise<RepoTree> {
+    return this.analysisService.getTree(user, id);
   }
 
   /** GET /api/github/repositories/:id/analysis — poll status + report. */

@@ -35,6 +35,15 @@ export class AnalysisService {
     return row ? AnalysisService.toContract(row) : null;
   }
 
+  /** The repository's real file tree (flat paths, GitHub API, no LLM). */
+  async getTree(user: User, repoId: string): Promise<{ paths: string[]; truncated: boolean }> {
+    const repo = await this.requireOwnedRepo(user, repoId);
+    const account = await this.prisma.githubAccount.findUnique({ where: { userId: user.id } });
+    if (!account) throw new NotFoundException("GitHub is not connected");
+    const token = this.cipher.decrypt(account.accessToken);
+    return this.repoFacts.listFiles(token, repo);
+  }
+
   /** Kick off (or re-run) analysis. Returns immediately; work runs in background. */
   async startAnalysis(user: User, repoId: string): Promise<RepositoryAnalysis> {
     const repo = await this.requireOwnedRepo(user, repoId);

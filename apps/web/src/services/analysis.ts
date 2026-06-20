@@ -1,10 +1,17 @@
 import {
+  repoTreeSchema,
   repositoryAnalysisSchema,
   repositorySchema,
+  type RepoTree,
   type Repository,
   type RepositoryAnalysis,
 } from "@engineerdna/shared";
 import { apiFetch, ApiError } from "@/lib/api";
+
+/** GET the repository's real file tree (flat paths; client renders the tree). */
+export async function getRepoTree(id: string): Promise<RepoTree> {
+  return repoTreeSchema.parse(await apiFetch<unknown>(`/github/repositories/${id}/tree`));
+}
 
 /** GET a single imported repository. */
 export async function getRepository(id: string): Promise<Repository> {
