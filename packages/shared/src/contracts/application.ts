@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jobTypeSchema, companySchema } from "./job";
+import { proctoringReportSchema } from "./interview";
 
 export const applicationStatusSchema = z.enum([
   "APPLIED",
@@ -73,6 +74,9 @@ export const recruiterApplicantSchema = z.object({
   resumeSkills: z.array(z.string()), // required skills found in the resume
   missingSkills: z.array(z.string()), // required skills with neither
   matchedRepos: z.array(matchedRepoSchema), // repos proving the required skills
+  // Best evaluated mock-interview signal (informational), with its integrity.
+  interviewScore: z.number().nullable(),
+  interviewIntegrity: proctoringReportSchema.nullable(),
 });
 export type RecruiterApplicant = z.infer<typeof recruiterApplicantSchema>;
 

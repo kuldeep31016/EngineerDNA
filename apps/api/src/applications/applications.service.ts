@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import type { User } from "@prisma/client";
+import { proctoringReportSchema } from "@engineerdna/shared";
 import type {
   ApplyRequest,
   DeveloperEvidenceItem,
@@ -226,6 +227,13 @@ export class ApplicationsService {
 
     const report = await this.matchReport(app.studentId, jobSkills, used, app.resumeText);
 
+    // Best evaluated mock interview (informational signal + its integrity).
+    const bestInterview = await this.prisma.interview.findFirst({
+      where: { userId: app.studentId, status: "EVALUATED", overallScore: { not: null } },
+      orderBy: { overallScore: "desc" },
+      select: { overallScore: true, proctoring: true },
+    });
+
     const profile = app.student.profile;
     const portfolioSlug = app.student.portfolio?.published ? (app.student.portfolio.slug ?? null) : null;
 
@@ -246,6 +254,10 @@ export class ApplicationsService {
       topSkills,
       portfolioSlug,
       githubUsername: profile?.githubUsername ?? null,
+      interviewScore: bestInterview?.overallScore ?? null,
+      interviewIntegrity: bestInterview?.proctoring
+        ? proctoringReportSchema.parse(bestInterview.proctoring)
+        : null,
       ...report,
     };
   }
