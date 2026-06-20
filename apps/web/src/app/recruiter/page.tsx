@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
   Bookmark,
@@ -32,6 +33,7 @@ import {
   removeShortlist,
   searchCandidates,
 } from "@/services/recruiter";
+import { inviteCandidate } from "@/services/messaging";
 
 const SUGGESTIONS = ["React", "Node.js", "TypeScript", "PostgreSQL", "Docker", "AWS", "Redis", "Spring Boot", "Kafka", "Kubernetes"];
 
@@ -96,6 +98,7 @@ function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [inviting, setInviting] = useState<CandidateSummary | null>(null);
 
   const addSkill = (s: string) => {
     const v = s.trim();
@@ -245,6 +248,7 @@ function Dashboard() {
               saved={saved.has(c.id)}
               onToggleSave={() => toggleSave(c.id)}
               onView={() => setDetailId(c.id)}
+              onMessage={() => setInviting(c)}
             />
           ))}
           <Pagination
@@ -267,6 +271,80 @@ function Dashboard() {
           onClose={() => setDetailId(null)}
         />
       )}
+
+      {inviting && <InviteModal candidate={inviting} onClose={() => setInviting(null)} />}
+    </div>
+  );
+}
+
+/** Send a connection request to a candidate (creates a pending conversation). */
+function InviteModal({ candidate, onClose }: { candidate: CandidateSummary; onClose: () => void }) {
+  const router = useRouter();
+  const [message, setMessage] = useState(
+    `Hi ${candidate.name?.split(" ")[0] ?? "there"}, I came across your verified profile on EngineerDNA and would love to connect about an opportunity.`,
+  );
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  async function send() {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      await inviteCandidate(candidate.id, message.trim());
+      setSent(true);
+    } catch {
+      setError("Couldn't send the invitation. Please try again.");
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Message {candidate.name ?? "candidate"}</h2>
+            <p className="text-xs text-muted-foreground">They&apos;ll chat with you once they accept.</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {sent ? (
+          <div className="py-4 text-center">
+            <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+              <BookmarkCheck className="h-5 w-5" />
+            </span>
+            <p className="mt-3 font-medium">Invitation sent</p>
+            <p className="mt-1 text-sm text-muted-foreground">You&apos;ll be able to chat once they accept.</p>
+            <div className="mt-4 flex justify-center gap-2">
+              <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium">Close</button>
+              <button onClick={() => router.push("/messages")} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Go to messages</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={5}
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/60"
+            />
+            {error && <p className="mt-2 text-xs text-rose-400">{error}</p>}
+            <button
+              onClick={send}
+              disabled={sending || !message.trim()}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessagesSquare className="h-4 w-4" />}
+              Send invitation
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -276,11 +354,13 @@ function CandidateCard({
   saved,
   onToggleSave,
   onView,
+  onMessage,
 }: {
   c: CandidateSummary;
   saved: boolean;
   onToggleSave: () => void;
   onView: () => void;
+  onMessage: () => void;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -322,12 +402,18 @@ function CandidateCard({
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={onView}
           className="rounded-lg bg-brand px-3.5 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           View profile
+        </button>
+        <button
+          onClick={onMessage}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <MessagesSquare className="h-4 w-4" /> Message
         </button>
         <button
           onClick={onToggleSave}

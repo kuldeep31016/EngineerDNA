@@ -29,6 +29,7 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/jobs", label: "Job Board", icon: Briefcase },
   { href: "/applications", label: "My Applications", icon: ClipboardList },
+  { href: "/messages", label: "Messages", icon: MessagesSquare },
   { href: "/dna", label: "Developer DNA", icon: Dna },
   { href: "/reputation", label: "Reputation", icon: Award },
   { href: "/repositories", label: "Repositories", icon: FolderGit2 },

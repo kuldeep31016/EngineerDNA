@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, CreditCard, LogOut, Users } from "lucide-react";
+import { Briefcase, CreditCard, LogOut, MessagesSquare, Users } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { getSubscription } from "@/services/billing";
 const FEATURE_NAV = [
   { href: "/recruiter", label: "Find Talent", icon: Users },
   { href: "/recruiter/jobs", label: "Job Posts", icon: Briefcase },
+  { href: "/messages", label: "Messages", icon: MessagesSquare },
 ];
 const BILLING_NAV = { href: "/recruiter/plans", label: "Subscription & Billing", icon: CreditCard };
 
