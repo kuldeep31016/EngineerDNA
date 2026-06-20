@@ -50,6 +50,7 @@ function JobDetailContent() {
   const [job, setJob] = useState<JobPost | null>(null);
   const [candidates, setCandidates] = useState<RankedCandidate[] | null>(null);
   const [applicants, setApplicants] = useState<RecruiterApplicant[] | null>(null);
+  const [appView, setAppView] = useState<"list" | "board">("list");
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
 
@@ -201,13 +202,102 @@ function JobDetailContent() {
             <p className="mt-2 text-sm text-muted-foreground">No applications yet.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {applicants.map((a) => (
-              <ApplicantCard key={a.applicationId} applicant={a} onStatusChange={changeStatus} />
-            ))}
+          <div className="space-y-4">
+            <div className="inline-flex rounded-lg border border-border bg-card p-1 text-sm">
+              {(["list", "board"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setAppView(v)}
+                  className={`rounded-md px-3 py-1.5 font-medium capitalize transition-colors ${
+                    appView === v ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v === "board" ? "Pipeline board" : "List"}
+                </button>
+              ))}
+            </div>
+
+            {appView === "list" ? (
+              <div className="space-y-3">
+                {applicants.map((a) => (
+                  <ApplicantCard key={a.applicationId} applicant={a} onStatusChange={changeStatus} />
+                ))}
+              </div>
+            ) : (
+              <PipelineBoard applicants={applicants} onStatusChange={changeStatus} />
+            )}
           </div>
         ))}
     </main>
+  );
+}
+
+/** Trello-style hiring pipeline — drag applicant cards between stage columns. */
+function PipelineBoard({
+  applicants,
+  onStatusChange,
+}: {
+  applicants: RecruiterApplicant[];
+  onStatusChange: (id: string, status: ApplicationStatus) => Promise<void>;
+}) {
+  const [dragOver, setDragOver] = useState<ApplicationStatus | null>(null);
+
+  function onDrop(e: React.DragEvent, status: ApplicationStatus) {
+    e.preventDefault();
+    setDragOver(null);
+    const id = e.dataTransfer.getData("text/plain");
+    const app = applicants.find((a) => a.applicationId === id);
+    if (id && app && app.status !== status) void onStatusChange(id, status);
+  }
+
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2">
+      {APPLICATION_STATUSES.map((col) => {
+        const cards = applicants.filter((a) => a.status === col.value);
+        return (
+          <div
+            key={col.value}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(col.value);
+            }}
+            onDragLeave={() => setDragOver((d) => (d === col.value ? null : d))}
+            onDrop={(e) => onDrop(e, col.value)}
+            className={`flex w-64 shrink-0 flex-col rounded-xl border bg-card/50 p-2 transition-colors ${
+              dragOver === col.value ? "border-primary/50 bg-primary/5" : "border-border"
+            }`}
+          >
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className={`text-xs font-semibold ${col.color}`}>{col.label}</span>
+              <span className="rounded-full bg-secondary px-1.5 text-[10px] text-muted-foreground">{cards.length}</span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {cards.map((a) => (
+                <div
+                  key={a.applicationId}
+                  draggable
+                  onDragStart={(e) => e.dataTransfer.setData("text/plain", a.applicationId)}
+                  className="cursor-grab rounded-lg border border-border bg-card p-3 active:cursor-grabbing"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium">{a.name ?? "Candidate"}</span>
+                    <span className={`text-xs font-bold ${matchColor(a.matchScore)}`}>{a.matchScore}%</span>
+                  </div>
+                  {a.headline && <p className="truncate text-xs text-muted-foreground">{a.headline}</p>}
+                  <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className={scoreColor(a.dnaScore)}>DNA {a.dnaScore}</span>
+                    {a.interviewScore !== null && <span>· Interview {a.interviewScore}</span>}
+                  </div>
+                </div>
+              ))}
+              {cards.length === 0 && (
+                <p className="px-2 py-3 text-center text-[11px] text-muted-foreground">Drop here</p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
