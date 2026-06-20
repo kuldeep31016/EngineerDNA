@@ -86,6 +86,10 @@ export const proctoringReportSchema = z.object({
   fullscreenExits: z.number().default(0),
   tabSwitches: z.number().default(0),
   focusLost: z.number().default(0),
+  // Camera-vision signals (MediaPipe, in-browser). Defaulted so older records
+  // without these fields still parse.
+  noFaceEvents: z.number().default(0), // camera saw no face (candidate absent/covered)
+  multipleFaceEvents: z.number().default(0), // more than one person in frame
   terminated: z.boolean().default(false),
 });
 export type ProctoringReport = z.infer<typeof proctoringReportSchema>;
