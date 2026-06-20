@@ -28,7 +28,7 @@ import {
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
-import { getOssRecommendations, searchOss } from "@/services/oss";
+import { getOssRecommendations, peekOssRecommendations, searchOss } from "@/services/oss";
 import { getGithubStatus } from "@/services/github";
 
 const DIFF: Record<OssDifficulty, string> = {
@@ -38,14 +38,18 @@ const DIFF: Record<OssDifficulty, string> = {
 };
 
 function OssContent() {
-  const [data, setData] = useState<OssRecommendation | null>(null);
+  // Seed from the client cache so returning to this page is instant and makes
+  // no API call (only the first visit, a Refresh, or filters hit the network).
+  const [data, setData] = useState<OssRecommendation | null>(() => peekOssRecommendations());
   const [refreshing, setRefreshing] = useState(false);
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [view, setView] = useState<"matched" | "explore">("matched");
   const [lang, setLang] = useState<string | null>(null); // language filter on matched repos
 
   useEffect(() => {
+    if (data) return; // already have cached data — no fetch
     void getOssRecommendations().then(setData).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function refresh() {
