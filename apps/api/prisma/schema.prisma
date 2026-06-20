@@ -451,6 +451,11 @@ model Profile {
   codeforcesUsername String?
   openToWork         Boolean  @default(false)
   isPublic           Boolean  @default(false)
+  // Recruiter-facing hiring signals the student fills in.
+  college            String?
+  experienceYears    Int?
+  availability       String?
+  expectedSalary     String?
   education          Json     @default("[]")
   experience         Json     @default("[]")
   projects           Json     @default("[]")

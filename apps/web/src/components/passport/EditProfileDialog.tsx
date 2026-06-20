@@ -28,6 +28,10 @@ export function EditProfileDialog({
     githubUsername: profile.githubUsername ?? "",
     leetcodeUsername: profile.leetcodeUsername ?? "",
     codeforcesUsername: profile.codeforcesUsername ?? "",
+    college: profile.college ?? "",
+    experienceYears: profile.experienceYears ?? null,
+    availability: profile.availability ?? "",
+    expectedSalary: profile.expectedSalary ?? "",
     openToWork: profile.openToWork,
     isPublic: profile.isPublic,
   });
@@ -52,6 +56,9 @@ export function EditProfileDialog({
     { key: "githubUsername", label: "GitHub username", ph: "octocat" },
     { key: "leetcodeUsername", label: "LeetCode username", ph: "" },
     { key: "codeforcesUsername", label: "Codeforces username", ph: "" },
+    { key: "college", label: "College / University", ph: "IIT Bombay" },
+    { key: "availability", label: "Availability", ph: "Immediately · 1 month · Open to offers" },
+    { key: "expectedSalary", label: "Expected salary", ph: "₹12–15 LPA" },
   ] as const;
 
   return (
@@ -79,6 +86,19 @@ export function EditProfileDialog({
             />
           </div>
         ))}
+
+        <div>
+          <Label htmlFor="experienceYears">Years of experience</Label>
+          <Input
+            id="experienceYears"
+            type="number"
+            min={0}
+            max={60}
+            placeholder="2"
+            value={draft.experienceYears ?? ""}
+            onChange={(e) => set({ experienceYears: e.target.value === "" ? null : Number(e.target.value) })}
+          />
+        </div>
 
         <label className="flex items-center gap-2 text-sm">
           <input
