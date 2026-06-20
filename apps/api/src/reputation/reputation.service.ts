@@ -146,7 +146,8 @@ function consistencyFactor(lastPush: Date | undefined, timelineSpan: number): Re
   if (lastPush) {
     const days = Math.floor((Date.now() - lastPush.getTime()) / 86_400_000);
     recency = days < 30 ? 100 : days < 90 ? 80 : days < 180 ? 55 : days < 365 ? 35 : 15;
-    detail = `Last push ${days} ${days === 1 ? "day" : "days"} ago; ${timelineSpan} skills on your timeline.`;
+    const when = days === 0 ? "today" : `${days} ${days === 1 ? "day" : "days"} ago`;
+    detail = `Last push ${when}; ${timelineSpan} skills on your timeline.`;
   }
   return {
     key: "consistency",

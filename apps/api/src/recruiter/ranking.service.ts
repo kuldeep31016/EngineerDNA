@@ -170,7 +170,8 @@ function recentActivityFactor(lastPush: Date | undefined): RankingFactor {
   if (lastPush) {
     const days = Math.floor((Date.now() - lastPush.getTime()) / 86_400_000);
     score = days < 30 ? 100 : days < 90 ? 80 : days < 180 ? 60 : days < 365 ? 40 : 20;
-    detail = `Last public push ${days} ${days === 1 ? "day" : "days"} ago.`;
+    const when = days === 0 ? "today" : `${days} ${days === 1 ? "day" : "days"} ago`;
+    detail = `Last public push ${when}.`;
   }
   return { key: "recentActivity", label: "Recent activity", score, weight: WEIGHTS.recentActivity, detail };
 }
