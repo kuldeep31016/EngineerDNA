@@ -23,10 +23,30 @@ const DIFF: Record<OssDifficulty, string> = {
   advanced: "bg-rose-500/15 text-rose-300",
 };
 
+// Popular languages on goodfirstissue.dev — curated good-first-issue lists per
+// language. Deep-linked (no scraping, no API cost). Slug must match their URLs.
+const GFI_LANGUAGES: { label: string; slug: string }[] = [
+  { label: "Python", slug: "python" },
+  { label: "TypeScript", slug: "typescript" },
+  { label: "JavaScript", slug: "javascript" },
+  { label: "Go", slug: "go" },
+  { label: "Java", slug: "java" },
+  { label: "C++", slug: "c++" },
+  { label: "C#", slug: "c#" },
+  { label: "Rust", slug: "rust" },
+  { label: "PHP", slug: "php" },
+  { label: "Ruby", slug: "ruby" },
+  { label: "Kotlin", slug: "kotlin" },
+  { label: "Shell", slug: "shell" },
+];
+const gfiUrl = (slug: string) => `https://goodfirstissue.dev/language/${encodeURIComponent(slug)}`;
+
 function OssContent() {
   const [data, setData] = useState<OssRecommendation | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<"matched" | "gfi">("matched");
+  const [lang, setLang] = useState<string | null>(null); // language filter on matched repos
 
   useEffect(() => {
     void getOssRecommendations().then(setData).catch(() => {});
@@ -66,7 +86,7 @@ function OssContent() {
             Real repos and good first issues matched to your verified skills.
           </p>
         </div>
-        {data.available && (
+        {data.available && view === "matched" && (
           <button
             onClick={refresh}
             disabled={refreshing}
@@ -78,7 +98,25 @@ function OssContent() {
         )}
       </div>
 
-      {!data.available ? (
+      {/* View toggle — your matched repos, or browse curated good-first-issue lists. */}
+      <div className="mt-5 inline-flex rounded-lg border border-border bg-card p-1 text-sm">
+        <button
+          onClick={() => setView("matched")}
+          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === "matched" ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Matched to you
+        </button>
+        <button
+          onClick={() => setView("gfi")}
+          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === "gfi" ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Browse by language
+        </button>
+      </div>
+
+      {view === "gfi" ? (
+        <GfiBrowser skills={data.available ? data.skills : []} />
+      ) : !data.available ? (
         <Empty reason={data.reason} />
       ) : (
         <div className="mt-6 space-y-4">
@@ -91,21 +129,102 @@ function OssContent() {
             ))}
           </div>
 
-          {data.repos.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card px-6 py-14 text-center">
-              <Github className="mx-auto h-7 w-7 text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">
-                No beginner-friendly repos found right now — try Refresh, or build evidence for more skills.
-              </p>
-            </div>
-          ) : (
-            data.repos.map((repo) => (
+          {/* Language filter over the matched repos. */}
+          {(() => {
+            const langs = [...new Set(data.repos.map((r) => r.language).filter(Boolean) as string[])].sort();
+            if (langs.length < 2) return null;
+            return (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <FilterChip active={lang === null} onClick={() => setLang(null)}>All</FilterChip>
+                {langs.map((l) => (
+                  <FilterChip key={l} active={lang === l} onClick={() => setLang(l)}>{l}</FilterChip>
+                ))}
+              </div>
+            );
+          })()}
+
+          {(() => {
+            const shown = lang ? data.repos.filter((r) => r.language === lang) : data.repos;
+            if (shown.length === 0) {
+              return (
+                <div className="rounded-xl border border-border bg-card px-6 py-14 text-center">
+                  <Github className="mx-auto h-7 w-7 text-muted-foreground" />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    {data.repos.length === 0
+                      ? "No beginner-friendly repos found right now — try Refresh, or build evidence for more skills."
+                      : "No repos for that language — pick another."}
+                  </p>
+                </div>
+              );
+            }
+            return shown.map((repo) => (
               <RepoCard key={repo.fullName} repo={repo} open={open.has(repo.fullName)} onToggle={() => toggle(repo.fullName)} />
-            ))
-          )}
+            ));
+          })()}
         </div>
       )}
     </main>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+        active ? "border-primary/40 bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Browse curated good-first-issue lists by language (goodfirstissue.dev).
+ * Pure deep links — no scraping, no API calls. The user's own matched skills
+ * are highlighted first so the most relevant languages are one click away.
+ */
+function GfiBrowser({ skills }: { skills: string[] }) {
+  const skillSet = new Set(skills.map((s) => s.toLowerCase()));
+  const sorted = [...GFI_LANGUAGES].sort((a, b) => {
+    const am = skillSet.has(a.label.toLowerCase()) ? 0 : 1;
+    const bm = skillSet.has(b.label.toLowerCase()) ? 0 : 1;
+    return am - bm;
+  });
+  return (
+    <div className="mt-6 space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Hand-picked beginner-friendly issues from popular open-source projects, grouped by language.
+        Powered by{" "}
+        <a href="https://goodfirstissue.dev" target="_blank" rel="noreferrer" className="text-primary hover:underline">
+          goodfirstissue.dev
+        </a>
+        .
+      </p>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {sorted.map((l) => {
+          const mine = skillSet.has(l.label.toLowerCase());
+          return (
+            <a
+              key={l.slug}
+              href={gfiUrl(l.slug)}
+              target="_blank"
+              rel="noreferrer"
+              className={`group flex items-center justify-between rounded-xl border px-4 py-3 transition-colors ${
+                mine ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/40"
+              }`}
+            >
+              <span className="flex items-center gap-2 text-sm font-medium">
+                {l.label}
+                {mine && <Sparkles className="h-3 w-3 text-primary" />}
+              </span>
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-foreground" />
+            </a>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
