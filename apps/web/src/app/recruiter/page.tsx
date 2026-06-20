@@ -7,27 +7,24 @@ import {
   Bookmark,
   BookmarkCheck,
   Briefcase,
-  Building2,
   Github,
+  GraduationCap,
   Loader2,
   MapPin,
   MessagesSquare,
   Plus,
   Search,
   ShieldCheck,
-  Sparkles,
-  Star,
   Trophy,
   Users,
   X,
 } from "lucide-react";
-import type { CandidateProfile, CandidateSummary, RecruiterDashboard } from "@engineerdna/shared";
+import type { CandidateSummary, RecruiterDashboard } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { Pagination } from "@/components/ui/Pagination";
 import { usePagination } from "@/hooks/usePagination";
 import {
   addShortlist,
-  getCandidate,
   getRecruiterDashboard,
   getShortlist,
   removeShortlist,
@@ -97,8 +94,8 @@ function Dashboard() {
   const [shortlist, setShortlist] = useState<CandidateSummary[]>([]);
   const [searching, setSearching] = useState(false);
   const [saved, setSaved] = useState<Set<string>>(new Set());
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [inviting, setInviting] = useState<CandidateSummary | null>(null);
+  const router = useRouter();
 
   const addSkill = (s: string) => {
     const v = s.trim();
@@ -247,7 +244,7 @@ function Dashboard() {
               c={c}
               saved={saved.has(c.id)}
               onToggleSave={() => toggleSave(c.id)}
-              onView={() => setDetailId(c.id)}
+              onView={() => router.push(`/recruiter/candidates/${c.id}`)}
               onMessage={() => setInviting(c)}
             />
           ))}
@@ -261,15 +258,6 @@ function Dashboard() {
             label="candidates"
           />
         </div>
-      )}
-
-      {detailId && (
-        <CandidateDrawer
-          id={detailId}
-          saved={saved.has(detailId)}
-          onToggleSave={() => toggleSave(detailId)}
-          onClose={() => setDetailId(null)}
-        />
       )}
 
       {inviting && <InviteModal candidate={inviting} onClose={() => setInviting(null)} />}
@@ -384,6 +372,14 @@ function CandidateCard({
             <span className="flex items-center gap-1">
               <Github className="h-3 w-3" /> {c.publicRepoCount} public repos
             </span>
+            {c.college && (
+              <span className="flex items-center gap-1">
+                <GraduationCap className="h-3 w-3" /> {c.college}
+              </span>
+            )}
+            {c.experienceYears != null && <span>{c.experienceYears} yr exp</span>}
+            {c.availability && <span className="text-emerald-400">{c.availability}</span>}
+            {c.expectedSalary && <span>{c.expectedSalary}</span>}
           </div>
         </div>
         <div className="text-right">
@@ -425,158 +421,6 @@ function CandidateCard({
           {saved ? "Shortlisted" : "Shortlist"}
         </button>
       </div>
-    </div>
-  );
-}
-
-function CandidateDrawer({
-  id,
-  saved,
-  onToggleSave,
-  onClose,
-}: {
-  id: string;
-  saved: boolean;
-  onToggleSave: () => void;
-  onClose: () => void;
-}) {
-  const [profile, setProfile] = useState<CandidateProfile | null>(null);
-
-  useEffect(() => {
-    setProfile(null);
-    void getCandidate(id).then(setProfile).catch(() => {});
-  }, [id]);
-
-  const topScores = profile ? profile.scores.filter((s) => s.value > 0).sort((a, b) => b.value - a.value) : [];
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={onClose}>
-      <div
-        className="h-full w-full max-w-md overflow-y-auto border-l border-border bg-card p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">Verified profile</h2>
-          <button onClick={onClose} aria-label="Close" className="text-muted-foreground hover:text-foreground">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {!profile ? (
-          <div className="flex h-40 items-center justify-center text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-          </div>
-        ) : (
-          <div className="mt-4 space-y-5">
-            <div className="flex items-start gap-3">
-              <Avatar name={profile.name} image={profile.profileImage} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-lg font-semibold">{profile.name}</p>
-                  <BadgeCheck className="h-4 w-4 shrink-0 text-primary" />
-                </div>
-                {profile.headline && <p className="text-sm text-muted-foreground">{profile.headline}</p>}
-                {profile.location && (
-                  <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3" /> {profile.location}
-                  </p>
-                )}
-              </div>
-              <div className="text-right">
-                <p className={`text-2xl font-bold tabular-nums ${scoreColor(profile.overall)}`}>{profile.overall}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">DNA</p>
-              </div>
-            </div>
-
-            <button
-              onClick={onToggleSave}
-              className={`inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                saved ? "border-primary/40 bg-primary/10" : "border-border hover:bg-accent"
-              }`}
-            >
-              {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-              {saved ? "Shortlisted" : "Add to shortlist"}
-            </button>
-
-            {topScores.length > 0 && (
-              <Section icon={Sparkles} title="Engineering DNA">
-                <div className="space-y-2.5">
-                  {topScores.slice(0, 8).map((s) => (
-                    <div key={s.key}>
-                      <div className="mb-1 flex items-center justify-between text-xs">
-                        <span>{s.label}</span>
-                        <span className="tabular-nums text-muted-foreground">{s.value}</span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${s.value}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {profile.verifiedSkills.length > 0 && (
-              <Section icon={ShieldCheck} title={`Verified skills (${profile.verifiedSkills.length})`}>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile.verifiedSkills.map((s) => (
-                    <span key={s.technology} className="rounded-full border border-border bg-secondary/50 px-2.5 py-0.5 text-xs">
-                      {s.technology}
-                      {s.repositoryCount > 1 && <span className="text-muted-foreground"> ·{s.repositoryCount}</span>}
-                    </span>
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            {profile.topRepos.length > 0 && (
-              <Section icon={Github} title="Public repositories">
-                <div className="space-y-2">
-                  {profile.topRepos.map((r) => (
-                    <a
-                      key={r.name}
-                      href={r.htmlUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block rounded-lg border border-border px-3 py-2 transition-colors hover:border-primary/40"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm font-medium">{r.name}</span>
-                        <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-                          <Star className="h-3 w-3" /> {r.stars}
-                        </span>
-                      </div>
-                      {r.description && <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{r.description}</p>}
-                      {r.language && (
-                        <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                          <Building2 className="h-3 w-3" /> {r.language}
-                        </p>
-                      )}
-                    </a>
-                  ))}
-                </div>
-              </Section>
-            )}
-
-            <p className="text-xs text-muted-foreground">
-              <ShieldCheck className="mr-1 inline h-3 w-3" />
-              Verified evidence only — private repositories are never shown.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Section({ icon: Icon, title, children }: { icon: typeof Users; title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-semibold">{title}</h3>
-      </div>
-      {children}
     </div>
   );
 }
