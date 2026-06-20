@@ -6,11 +6,14 @@ import type { ProctoringReport } from "@engineerdna/shared";
 export interface ProctoringState {
   violations: ProctoringReport;
   totalViolations: number;
-  warning: { message: string; count: number } | null; // latest warning to surface as a toast
+  // latest warning to surface as a toast. `strike` = counts toward the 3-strike
+  // auto-terminate (fullscreen/tab/focus); face events are warnings only.
+  warning: { message: string; count: number; strike: boolean } | null;
   isFullscreen: boolean;
   terminated: boolean;
   enterFullscreen: () => Promise<void>;
   dismissWarning: () => void;
+  registerFaceEvent: (kind: "noFace" | "multipleFace") => void;
 }
 
 const MAX_VIOLATIONS = 3;
@@ -36,9 +39,11 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
     fullscreenExits: 0,
     tabSwitches: 0,
     focusLost: 0,
+    noFaceEvents: 0,
+    multipleFaceEvents: 0,
     terminated: false,
   });
-  const [warning, setWarning] = useState<{ message: string; count: number } | null>(null);
+  const [warning, setWarning] = useState<{ message: string; count: number; strike: boolean } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [terminated, setTerminated] = useState(false);
 
@@ -73,14 +78,31 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
         terminatedRef.current = true;
         setTerminated(true);
         setViolations((v) => ({ ...v, terminated: true }));
-        setWarning({ message: "Interview ended due to repeated violations.", count });
+        setWarning({ message: "Interview ended due to repeated violations.", count, strike: true });
         onTerminateRef.current();
       } else {
-        setWarning({ message: `${label} After ${MAX_VIOLATIONS} violations your interview ends automatically.`, count });
+        setWarning({
+          message: `${label} After ${MAX_VIOLATIONS} violations your interview ends automatically.`,
+          count,
+          strike: true,
+        });
       }
     },
     [],
   );
+
+  // Camera-vision events. Logged + warned, but deliberately NOT counted toward
+  // auto-termination — vision can have false positives, so a human reviews them.
+  const registerFaceEvent = useCallback((kind: "noFace" | "multipleFace") => {
+    if (terminatedRef.current) return;
+    if (kind === "noFace") {
+      setViolations((v) => ({ ...v, noFaceEvents: v.noFaceEvents + 1 }));
+      setWarning({ message: "No face detected — stay visible to the camera.", count: 0, strike: false });
+    } else {
+      setViolations((v) => ({ ...v, multipleFaceEvents: v.multipleFaceEvents + 1 }));
+      setWarning({ message: "Multiple people detected — only you should be visible.", count: 0, strike: false });
+    }
+  }, []);
 
   useEffect(() => {
     if (!active) return;
@@ -147,5 +169,6 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
     terminated,
     enterFullscreen,
     dismissWarning,
+    registerFaceEvent,
   };
 }
