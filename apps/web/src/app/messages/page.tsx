@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Loader2, MessagesSquare, Paperclip, Send, X } from "lucide-react";
+import { Check, Loader2, MessagesSquare, Paperclip, Send } from "lucide-react";
 import type { ChatMessage, Conversation, ConversationDetail } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { API_ORIGIN } from "@/lib/api";
 import {
   getConversation,
   getConversations,
   respondInvite,
   sendMessage,
+  uploadAttachment,
 } from "@/services/messaging";
 
 function timeAgo(iso: string): string {
@@ -63,9 +65,9 @@ function MessagesContent() {
           </p>
         </div>
       ) : (
-        <div className="grid h-[68vh] grid-cols-1 overflow-hidden rounded-2xl border border-border bg-card md:grid-cols-[300px_1fr]">
+        <div className="grid h-[72vh] min-h-0 grid-cols-1 overflow-hidden rounded-2xl border border-border bg-card md:grid-cols-[300px_1fr]">
           {/* Conversation list */}
-          <div className="overflow-y-auto border-b border-border md:border-b-0 md:border-r">
+          <div className="min-h-0 overflow-y-auto border-b border-border md:border-b-0 md:border-r">
             {convos.map((c) => (
               <button
                 key={c.id}
@@ -125,11 +127,28 @@ function Avatar({ name, image }: { name: string | null; image: string | null }) 
 function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
   const [convo, setConvo] = useState<ConversationDetail | null>(null);
   const [body, setBody] = useState("");
-  const [link, setLink] = useState("");
-  const [showLink, setShowLink] = useState(false);
   const [sending, setSending] = useState(false);
   const [responding, setResponding] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function onFiles(files: FileList | null) {
+    if (!files || files.length === 0 || uploading) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const msg = await uploadAttachment(id, file);
+        setConvo((c) => (c ? { ...c, messages: [...c.messages, msg] } : c));
+      }
+      onChanged();
+    } catch {
+      // ignore — surfaced as no new bubble
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
 
   const load = useCallback(() => {
     getConversation(id).then(setConvo).catch(() => {});
@@ -159,15 +178,9 @@ function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
     if (!body.trim() || sending) return;
     setSending(true);
     try {
-      const msg = await sendMessage(id, {
-        body: body.trim(),
-        attachmentUrl: link.trim() || undefined,
-        attachmentLabel: link.trim() ? "Shared link" : undefined,
-      });
+      const msg = await sendMessage(id, { body: body.trim() });
       setConvo((c) => (c ? { ...c, messages: [...c.messages, msg] } : c));
       setBody("");
-      setLink("");
-      setShowLink(false);
       onChanged();
     } finally {
       setSending(false);
@@ -188,9 +201,9 @@ function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
   const canChat = convo.status === "ACCEPTED";
 
   return (
-    <div className="flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col">
+      {/* Header (sticky — never scrolls away) */}
+      <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <Avatar name={convo.party.name} image={convo.party.profileImage} />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold">{convo.party.name ?? "User"}</p>
@@ -198,8 +211,8 @@ function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      {/* Messages — the only scrollable region */}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {convo.messages.map((m) => (
           <Bubble key={m.id} m={m} />
         ))}
@@ -208,7 +221,7 @@ function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
 
       {/* Footer — accept/decline, declined notice, or composer */}
       {pendingForStudent ? (
-        <div className="flex items-center gap-2 border-t border-border p-3">
+        <div className="flex items-center gap-2 shrink-0 border-t border-border p-3">
           <p className="flex-1 text-sm text-muted-foreground">Accept to start chatting with this recruiter.</p>
           <button
             onClick={() => respond("decline")}
@@ -226,33 +239,33 @@ function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
           </button>
         </div>
       ) : pendingForRecruiter ? (
-        <div className="border-t border-border p-3 text-center text-sm text-muted-foreground">
+        <div className="shrink-0 border-t border-border p-3 text-center text-sm text-muted-foreground">
           Waiting for {convo.party.name ?? "the candidate"} to accept your invitation.
         </div>
       ) : declined ? (
-        <div className="border-t border-border p-3 text-center text-sm text-muted-foreground">
+        <div className="shrink-0 border-t border-border p-3 text-center text-sm text-muted-foreground">
           This invitation was declined.
         </div>
       ) : canChat ? (
-        <div className="border-t border-border p-3">
-          {showLink && (
-            <div className="mb-2 flex items-center gap-2">
-              <input
-                value={link}
-                onChange={(e) => setLink(e.target.value)}
-                placeholder="Paste a meeting / interview / offer link…"
-                className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm outline-none focus:border-primary/60"
-              />
-              <button onClick={() => { setShowLink(false); setLink(""); }} aria-label="Remove link">
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            </div>
+        <div className="shrink-0 border-t border-border p-3">
+          {uploading && (
+            <p className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Uploading…
+            </p>
           )}
           <div className="flex items-end gap-2">
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => onFiles(e.target.files)}
+            />
             <button
-              onClick={() => setShowLink((v) => !v)}
-              title="Attach a link"
-              className={`rounded-lg border border-border p-2 transition-colors hover:bg-accent ${showLink ? "text-primary" : "text-muted-foreground"}`}
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              title="Attach files"
+              className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
             >
               <Paperclip className="h-4 w-4" />
             </button>
@@ -283,7 +296,14 @@ function ChatPanel({ id, onChanged }: { id: string; onChanged: () => void }) {
   );
 }
 
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
+
 function Bubble({ m }: { m: ChatMessage }) {
+  // Uploaded files live at the API origin under /uploads; links are absolute.
+  const isUpload = m.attachmentUrl?.startsWith("/uploads/");
+  const href = m.attachmentUrl ? (isUpload ? `${API_ORIGIN}${m.attachmentUrl}` : m.attachmentUrl) : null;
+  const isImage = href ? IMAGE_EXT.test(m.attachmentLabel ?? m.attachmentUrl ?? "") : false;
+
   return (
     <div className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
       <div
@@ -291,17 +311,25 @@ function Bubble({ m }: { m: ChatMessage }) {
           m.mine ? "rounded-br-sm bg-brand text-white" : "rounded-bl-sm border border-border bg-background"
         }`}
       >
-        <p className="whitespace-pre-wrap break-words">{m.body}</p>
-        {m.attachmentUrl && (
+        {href && isImage ? (
+          <a href={href} target="_blank" rel="noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={href} alt={m.attachmentLabel ?? "image"} className="mb-1 max-h-60 rounded-lg" />
+          </a>
+        ) : href ? (
           <a
-            href={m.attachmentUrl}
+            href={href}
             target="_blank"
             rel="noreferrer"
-            className={`mt-1 inline-flex items-center gap-1 text-xs underline ${m.mine ? "text-white/90" : "text-primary"}`}
+            download={isUpload ? m.attachmentLabel ?? true : undefined}
+            className={`mb-1 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs ${
+              m.mine ? "bg-white/15 text-white" : "bg-secondary text-foreground"
+            }`}
           >
-            <Paperclip className="h-3 w-3" /> {m.attachmentLabel ?? "Open link"}
+            <Paperclip className="h-3.5 w-3.5" /> {m.attachmentLabel ?? "Open file"}
           </a>
-        )}
+        ) : null}
+        {(!href || !isImage) && <p className="whitespace-pre-wrap break-words">{m.body}</p>}
         <p className={`mt-0.5 text-[10px] ${m.mine ? "text-white/70" : "text-muted-foreground"}`}>{timeAgo(m.createdAt)}</p>
       </div>
     </div>
