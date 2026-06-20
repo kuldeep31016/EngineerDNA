@@ -136,7 +136,7 @@ function ReportContent() {
 
       <div className="mt-6 space-y-4">
         <ReportCard repoId={id} />
-        <EvidencePanel repoId={id} />
+        <EvidencePanel repo={repo} />
         {!analysis && <EmptyState />}
         {isRunning && <RunningState />}
         {analysis?.status === "FAILED" && <FailedState error={analysis.error} />}
@@ -240,18 +240,25 @@ function DimensionBar({ score }: { score: Score }) {
   );
 }
 
-function EvidencePanel({ repoId }: { repoId: string }) {
+function EvidencePanel({ repo }: { repo: Repository }) {
   const [items, setItems] = useState<RepoEvidenceItem[] | null>(null);
   const [building, setBuilding] = useState(false);
+  const [built, setBuilt] = useState(false);
+  const [ownCommits, setOwnCommits] = useState(repo.ownCommits);
 
   useEffect(() => {
-    void getRepoEvidence(repoId).then(setItems);
-  }, [repoId]);
+    void getRepoEvidence(repo.id).then(setItems);
+  }, [repo.id]);
 
   const build = async () => {
     setBuilding(true);
     try {
-      setItems(await buildRepoEvidence(repoId));
+      setItems(await buildRepoEvidence(repo.id));
+      setBuilt(true);
+      // The build updates the own-commit count — refresh it so we can explain
+      // why a fork you didn't contribute to produced no evidence.
+      const fresh = await getRepository(repo.id).catch(() => null);
+      if (fresh) setOwnCommits(fresh.ownCommits);
     } finally {
       setBuilding(false);
     }
@@ -260,6 +267,9 @@ function EvidencePanel({ repoId }: { repoId: string }) {
   const used = items?.filter((i) => i.strength === "USED") ?? [];
   const mentioned = items?.filter((i) => i.strength === "MENTIONED") ?? [];
   const hasAny = items && items.length > 0;
+  // After a build that yielded nothing AND no commits authored by the user, the
+  // trust gate excluded this repo — tell the user exactly why.
+  const noOwnCommits = built && !hasAny && ownCommits === 0;
 
   return (
     <Panel className="p-5">
@@ -271,7 +281,19 @@ function EvidencePanel({ repoId }: { repoId: string }) {
         </Button>
       </div>
 
-      {!hasAny ? (
+      {noOwnCommits ? (
+        <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3.5 text-sm text-amber-200">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">No evidence from this {repo.isFork ? "forked " : ""}repository</p>
+            <p className="mt-1 text-amber-200/80">
+              We couldn&apos;t find any commits authored by you here, so it can&apos;t count as evidence.
+              EngineerDNA only credits code you actually wrote — forking or cloning a project doesn&apos;t
+              make its tech yours. Push your own commits, re-sync, then build evidence again.
+            </p>
+          </div>
+        </div>
+      ) : !hasAny ? (
         <p className="text-sm text-muted-foreground">
           Detect what this repository actually <span className="font-medium">uses</span> versus
           what is only <span className="font-medium">mentioned</span> as a dependency. No AI cost —
