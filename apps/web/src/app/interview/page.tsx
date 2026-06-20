@@ -52,7 +52,7 @@ import {
   speak,
 } from "@/lib/speech";
 import { extractPdfText } from "@/lib/resume";
-import { requestFullscreen } from "@/lib/fullscreen";
+import { exitFullscreen, requestFullscreen } from "@/lib/fullscreen";
 import { getGithubStatus } from "@/services/github";
 import {
   getInterview,
@@ -171,6 +171,7 @@ function InterviewContent() {
   }
 
   function handleComplete(graded: Interview) {
+    void exitFullscreen(); // interview finished — leave fullscreen for the report
     setCurrent(graded);
     setPhase("report");
     stopStream();
@@ -178,6 +179,7 @@ function InterviewContent() {
   }
 
   function leave() {
+    void exitFullscreen();
     cancelSpeech();
     stopStream();
     setCurrent(null);

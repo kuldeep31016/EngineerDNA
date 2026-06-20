@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProctoringReport } from "@engineerdna/shared";
-import { exitFullscreen, isFullscreen as isDocFullscreen, requestFullscreen } from "@/lib/fullscreen";
+import { isFullscreen as isDocFullscreen, requestFullscreen } from "@/lib/fullscreen";
 
 export interface ProctoringState {
   violations: ProctoringReport;
@@ -159,12 +159,10 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
     };
   }, [active, registerViolation]);
 
-  // Leave fullscreen when monitoring stops (e.g. interview finished/unmounted).
-  useEffect(() => {
-    return () => {
-      void exitFullscreen();
-    };
-  }, []);
+  // NOTE: we deliberately do NOT exit fullscreen on unmount. React StrictMode
+  // (dev) mounts→unmounts→remounts once, and a cleanup here would cancel the
+  // fullscreen entered on "Begin". The caller exits fullscreen explicitly when
+  // the interview actually finishes.
 
   return {
     violations,
