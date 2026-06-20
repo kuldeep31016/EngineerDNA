@@ -23,8 +23,15 @@ const BARE_ROUTES = new Set([
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const user = useAuthStore((s) => s.user);
+  const status = useAuthStore((s) => s.status);
 
   if (BARE_ROUTES.has(pathname) || pathname.startsWith("/p/")) return <>{children}</>;
+
+  // Until auth resolves (or right after logout), render WITHOUT a sidebar so we
+  // never flash the wrong/student shell before a redirect to a login page.
+  if (status !== "authenticated") {
+    return <div className="min-h-screen">{children}</div>;
+  }
 
   const isRecruiter = user?.role === "RECRUITER" || user?.role === "ADMIN";
 

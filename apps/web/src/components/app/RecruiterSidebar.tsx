@@ -43,7 +43,7 @@ export function RecruiterSidebar() {
 
   const handleLogout = async () => {
     await logout();
-    router.replace("/recruiter/login");
+    router.replace("/");
   };
 
   return (
