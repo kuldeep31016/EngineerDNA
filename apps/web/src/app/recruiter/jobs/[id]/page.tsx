@@ -219,7 +219,8 @@ function matchColor(v: number): string {
 
 /** Integrity badge for a candidate's proctored mock interview. */
 function IntegrityBadge({ p }: { p: ProctoringReport }) {
-  const flags = p.fullscreenExits + p.tabSwitches + p.focusLost;
+  const flags =
+    p.fullscreenExits + p.tabSwitches + p.focusLost + p.noFaceEvents + p.multipleFaceEvents;
   if (p.terminated) {
     return (
       <span title="Auto-ended on repeated violations" className="rounded-full bg-rose-500/15 px-2 py-0.5 font-medium text-rose-300">
@@ -236,7 +237,7 @@ function IntegrityBadge({ p }: { p: ProctoringReport }) {
   }
   return (
     <span
-      title={`${p.fullscreenExits} fullscreen exits · ${p.tabSwitches} tab switches · ${p.focusLost} window leaves`}
+      title={`${p.fullscreenExits} fullscreen exits · ${p.tabSwitches} tab switches · ${p.focusLost} window leaves · ${p.noFaceEvents} no-face · ${p.multipleFaceEvents} multiple-face`}
       className="rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-300"
     >
       Integrity: {flags} flag{flags === 1 ? "" : "s"}

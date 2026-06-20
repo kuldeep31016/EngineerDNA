@@ -18,6 +18,7 @@ import {
   PhoneOff,
   Play,
   RotateCcw,
+  ScanFace,
   ShieldCheck,
   Sparkles,
   Target,
@@ -39,6 +40,7 @@ import {
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
+import { useFaceMonitor } from "@/hooks/useFaceMonitor";
 import { useProctoring } from "@/hooks/useProctoring";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import {
@@ -637,6 +639,7 @@ function Live({
   const stt = useSpeechRecognition();
   const finishingRef = useRef(false);
   const proc = useProctoring(true, () => {}); // termination handled via the effect below
+  const face = useFaceMonitor(videoRef, true, proc.registerFaceEvent); // in-browser camera check
 
   const q = interview.questions[idx]!;
   const isFinalQuestion = interview.questions.length >= TOTAL_QUESTIONS && idx === interview.questions.length - 1;
@@ -748,7 +751,7 @@ function Live({
           <div className="sticky top-0 z-10 flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/15 px-4 py-3 text-sm text-rose-200 shadow-lg">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <span className="flex-1">
-              <strong>Warning {Math.min(proc.warning.count, 3)}/3 — </strong>
+              {proc.warning.strike && <strong>Warning {Math.min(proc.warning.count, 3)}/3 — </strong>}
               {proc.warning.message}
             </span>
             <button onClick={proc.dismissWarning} aria-label="Dismiss" className="shrink-0 hover:text-white">
@@ -831,6 +834,29 @@ function Live({
               <VideoOff className="h-6 w-6" />
               <span className="text-xs">Camera off</span>
             </div>
+          )}
+          {/* Live face-monitor status chip (MediaPipe). */}
+          {stream && face.supported && (
+            <span
+              className={`absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium backdrop-blur ${
+                face.faceCount === 1
+                  ? "bg-emerald-500/20 text-emerald-200"
+                  : face.faceCount === 0
+                    ? "bg-amber-500/20 text-amber-200"
+                    : face.faceCount && face.faceCount > 1
+                      ? "bg-rose-500/20 text-rose-200"
+                      : "bg-black/40 text-white/80"
+              }`}
+            >
+              <ScanFace className="h-3 w-3" />
+              {face.faceCount === null
+                ? "Monitoring…"
+                : face.faceCount === 1
+                  ? "1 face"
+                  : face.faceCount === 0
+                    ? "No face"
+                    : `${face.faceCount} faces`}
+            </span>
           )}
         </div>
       </div>
@@ -943,11 +969,14 @@ function Orb({ speaking, thinking }: { speaking: boolean; thinking: boolean }) {
 
 /** Integrity / proctoring summary on the report — what the recruiter trusts. */
 function IntegrityPanel({ p }: { p: ProctoringReport }) {
-  const clean = p.fullscreenExits + p.tabSwitches + p.focusLost === 0;
+  const clean =
+    p.fullscreenExits + p.tabSwitches + p.focusLost + p.noFaceEvents + p.multipleFaceEvents === 0;
   const stats = [
     { label: "Fullscreen exits", value: p.fullscreenExits },
     { label: "Tab switches", value: p.tabSwitches },
     { label: "Window left", value: p.focusLost },
+    { label: "No face", value: p.noFaceEvents },
+    { label: "Multiple faces", value: p.multipleFaceEvents },
   ];
   return (
     <div
@@ -976,7 +1005,7 @@ function IntegrityPanel({ p }: { p: ProctoringReport }) {
           {p.terminated ? "Ended on violations" : clean ? "Clean session" : "Flagged"}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
         {stats.map((s) => (
           <div key={s.label} className="rounded-lg border border-border bg-background/40 px-3 py-2.5 text-center">
             <p className="text-2xl font-bold tabular-nums">{s.value}</p>
