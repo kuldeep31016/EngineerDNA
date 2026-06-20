@@ -116,6 +116,8 @@ function RepositoriesContent() {
             </div>
           </div>
 
+          {status.githubLogin && <GithubStatsCard login={status.githubLogin} />}
+
           {repos.length === 0 ? (
             <Card>
               <CardContent className="py-10 text-center text-sm text-muted-foreground">
@@ -133,6 +135,38 @@ function RepositoriesContent() {
         </>
       )}
     </main>
+  );
+}
+
+/**
+ * GitHub language breakdown across the user's commits — rendered by the free,
+ * open-source github-readme-stats service (themed to match the app). Read-only
+ * insight into where the developer actually spends their coding time.
+ */
+function GithubStatsCard({ login }: { login: string }) {
+  const base = "https://github-readme-stats.vercel.app/api/top-langs/";
+  const q = new URLSearchParams({
+    username: login,
+    layout: "compact",
+    include_all_commits: "true",
+    count_private: "false",
+    hide_border: "true",
+    bg_color: "00000000", // transparent — sits on our dark card
+    title_color: "8B5CF6",
+    text_color: "A1A1AA",
+    langs_count: "8",
+  });
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="mb-2 text-sm font-semibold">Most-used languages (from your commits)</p>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`${base}?${q.toString()}`}
+        alt={`Top languages for @${login}`}
+        className="w-full max-w-md"
+        loading="lazy"
+      />
+    </div>
   );
 }
 
