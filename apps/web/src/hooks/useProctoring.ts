@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProctoringReport } from "@engineerdna/shared";
+import { exitFullscreen, isFullscreen as isDocFullscreen, requestFullscreen } from "@/lib/fullscreen";
 
 export interface ProctoringState {
   violations: ProctoringReport;
@@ -60,11 +61,7 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
 
   /** Request browser fullscreen — MUST be called from a user gesture (a click). */
   const enterFullscreen = useCallback(async () => {
-    try {
-      await document.documentElement.requestFullscreen();
-    } catch {
-      // Some browsers/permissions refuse — the interview still runs windowed.
-    }
+    await requestFullscreen();
   }, []);
 
   const dismissWarning = useCallback(() => setWarning(null), []);
@@ -113,10 +110,10 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
   useEffect(() => {
     if (!active) return;
 
-    setIsFullscreen(Boolean(document.fullscreenElement));
+    setIsFullscreen(isDocFullscreen());
 
     const onFullscreenChange = () => {
-      const fs = Boolean(document.fullscreenElement);
+      const fs = isDocFullscreen();
       setIsFullscreen(fs);
       if (!fs) registerViolation("fullscreenExits", "You exited fullscreen. Return to fullscreen to continue.");
     };
@@ -140,6 +137,7 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
     };
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", onFullscreenChange);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("blur", onBlur);
     document.addEventListener("copy", block);
@@ -150,6 +148,7 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
 
     return () => {
       document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", onFullscreenChange);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("copy", block);
@@ -163,7 +162,7 @@ export function useProctoring(active: boolean, onTerminate: () => void): Proctor
   // Leave fullscreen when monitoring stops (e.g. interview finished/unmounted).
   useEffect(() => {
     return () => {
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      void exitFullscreen();
     };
   }, []);
 
