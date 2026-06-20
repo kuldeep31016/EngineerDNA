@@ -35,3 +35,4 @@ export * from "./contracts/copilot";
 export * from "./contracts/subscription";
 export * from "./contracts/application";
 export * from "./contracts/notification";
+export * from "./contracts/messaging";

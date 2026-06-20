@@ -95,6 +95,14 @@ enum ApplicationStatus {
   SELECTED
 }
 
+/// A recruiter→student conversation. Starts PENDING (an invitation); the student
+/// must ACCEPT before either side can chat — this prevents recruiter spam.
+enum ConversationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
 /// Where a piece of evidence came from. Source-typed so non-repo signals
 /// (interviews, learning, open source) can be first-class evidence later.
 enum EvidenceSource {
@@ -140,6 +148,9 @@ model User {
   applications  JobApplication[] @relation("StudentApplications")
   notifications Notification[]
   company       Company?
+  recruiterConversations Conversation[] @relation("RecruiterConversations")
+  studentConversations   Conversation[] @relation("StudentConversations")
+  sentMessages           Message[]      @relation("SentMessages")
 
   // A provider account maps to exactly one user.
   @@unique([provider, providerId])
@@ -531,4 +542,41 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+/// A recruiter→student conversation. One per (recruiter, student) pair. The
+/// recruiter opens it with an invitation (status PENDING); messaging is only
+/// allowed once the student ACCEPTs — keeps recruiters from spamming everyone.
+model Conversation {
+  id          String             @id @default(uuid()) @db.Uuid
+  recruiterId String             @db.Uuid
+  recruiter   User               @relation("RecruiterConversations", fields: [recruiterId], references: [id], onDelete: Cascade)
+  studentId   String             @db.Uuid
+  student     User               @relation("StudentConversations", fields: [studentId], references: [id], onDelete: Cascade)
+  status      ConversationStatus @default(PENDING)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  messages Message[]
+
+  @@unique([recruiterId, studentId])
+  @@index([studentId])
+  @@index([recruiterId])
+}
+
+/// A single chat message. `attachmentUrl` carries shared links (meeting link,
+/// interview link, offer letter PDF, etc.) — labelled by `attachmentLabel`.
+model Message {
+  id              String       @id @default(uuid()) @db.Uuid
+  conversationId  String       @db.Uuid
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId        String       @db.Uuid
+  sender          User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  body            String
+  attachmentUrl   String?
+  attachmentLabel String?
+  readAt          DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([conversationId])
 }
