@@ -12,6 +12,7 @@ import type {
   MatchedRepo,
   MyApplication,
   RecruiterApplicant,
+  RecruiterDashboard,
   StudentApplicationStats,
   UpdateApplicationStatusInput,
 } from "@engineerdna/shared";
@@ -160,6 +161,24 @@ export class ApplicationsService {
       interviews: apps.filter((a) => a.status === "INTERVIEW").length,
       offers: apps.filter((a) => a.status === "SELECTED").length,
       rejected: apps.filter((a) => a.status === "REJECTED").length,
+    };
+  }
+
+  /** Recruiter dashboard headline numbers, aggregated across all their jobs. */
+  async recruiterStats(recruiter: User): Promise<RecruiterDashboard> {
+    const [activeJobs, apps] = await Promise.all([
+      this.prisma.jobPost.count({ where: { recruiterId: recruiter.id, status: "OPEN" } }),
+      this.prisma.jobApplication.findMany({
+        where: { job: { recruiterId: recruiter.id } },
+        select: { status: true },
+      }),
+    ]);
+    return {
+      activeJobs,
+      totalApplicants: apps.length,
+      shortlisted: apps.filter((a) => a.status === "SHORTLISTED").length,
+      interviews: apps.filter((a) => a.status === "INTERVIEW").length,
+      hires: apps.filter((a) => a.status === "SELECTED").length,
     };
   }
 

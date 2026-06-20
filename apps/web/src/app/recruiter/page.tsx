@@ -5,25 +5,29 @@ import {
   BadgeCheck,
   Bookmark,
   BookmarkCheck,
+  Briefcase,
   Building2,
   Github,
   Loader2,
   MapPin,
+  MessagesSquare,
   Plus,
   Search,
   ShieldCheck,
   Sparkles,
   Star,
+  Trophy,
   Users,
   X,
 } from "lucide-react";
-import type { CandidateProfile, CandidateSummary } from "@engineerdna/shared";
+import type { CandidateProfile, CandidateSummary, RecruiterDashboard } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { Pagination } from "@/components/ui/Pagination";
 import { usePagination } from "@/hooks/usePagination";
 import {
   addShortlist,
   getCandidate,
+  getRecruiterDashboard,
   getShortlist,
   removeShortlist,
   searchCandidates,
@@ -35,6 +39,33 @@ function scoreColor(v: number): string {
   if (v >= 75) return "text-emerald-400";
   if (v >= 50) return "text-amber-400";
   return "text-rose-400";
+}
+
+/** Headline counts across the recruiter's hiring activity. */
+function RecruiterStatsStrip() {
+  const [stats, setStats] = useState<RecruiterDashboard | null>(null);
+  useEffect(() => {
+    getRecruiterDashboard().then(setStats).catch(() => {});
+  }, []);
+  if (!stats) return null;
+  const cards = [
+    { label: "Active jobs", value: stats.activeJobs, icon: Briefcase },
+    { label: "Applicants", value: stats.totalApplicants, icon: Users },
+    { label: "Shortlisted", value: stats.shortlisted, icon: Bookmark },
+    { label: "Interviews", value: stats.interviews, icon: MessagesSquare },
+    { label: "Hires", value: stats.hires, icon: Trophy },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {cards.map((c) => (
+        <div key={c.label} className="rounded-xl border border-border bg-card p-4">
+          <c.icon className="h-4 w-4 text-primary" />
+          <p className="mt-2 text-2xl font-bold tabular-nums">{c.value}</p>
+          <p className="text-xs text-muted-foreground">{c.label}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function RecruiterContent() {
@@ -129,6 +160,8 @@ function Dashboard() {
 
   return (
     <div className="mt-6 space-y-4">
+      <RecruiterStatsStrip />
+
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg border border-border bg-card p-1 text-sm">
         {(["search", "shortlist"] as const).map((t) => (

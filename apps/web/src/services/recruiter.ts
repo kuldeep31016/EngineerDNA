@@ -2,13 +2,20 @@ import {
   authUserSchema,
   candidateProfileSchema,
   candidateSearchResultSchema,
+  recruiterDashboardSchema,
   type AuthUser,
   type CandidateProfile,
   type CandidateSearchResult,
+  type RecruiterDashboard,
   type SearchCandidatesInput,
   type SwitchRoleInput,
 } from "@engineerdna/shared";
 import { apiFetch } from "@/lib/api";
+
+/** GET — recruiter dashboard headline numbers. */
+export async function getRecruiterDashboard(): Promise<RecruiterDashboard> {
+  return recruiterDashboardSchema.parse(await apiFetch<unknown>("/recruiter/dashboard"));
+}
 
 /** POST — search verified candidates by required skills. */
 export async function searchCandidates(input: SearchCandidatesInput): Promise<CandidateSearchResult> {

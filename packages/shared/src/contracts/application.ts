@@ -101,6 +101,16 @@ export const studentApplicationStatsSchema = z.object({
 });
 export type StudentApplicationStats = z.infer<typeof studentApplicationStatsSchema>;
 
+/** Recruiter dashboard headline numbers. */
+export const recruiterDashboardSchema = z.object({
+  activeJobs: z.number(),
+  totalApplicants: z.number(),
+  shortlisted: z.number(),
+  interviews: z.number(),
+  hires: z.number(),
+});
+export type RecruiterDashboard = z.infer<typeof recruiterDashboardSchema>;
+
 /** Dashboard stats for the recruiter. */
 export const recruiterApplicationStatsSchema = z.object({
   activeJobs: z.number(),

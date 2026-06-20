@@ -6,6 +6,7 @@ import {
   type ApplyRequest,
   type MyApplication,
   type RecruiterApplicant,
+  type RecruiterDashboard,
   type StudentApplicationStats,
   type UpdateApplicationStatusInput,
 } from "@engineerdna/shared";
@@ -41,6 +42,14 @@ export class ApplicationsController {
   @Get("student/applications/stats")
   myStats(@CurrentUser() user: User): Promise<StudentApplicationStats> {
     return this.applications.myStats(user);
+  }
+
+  /** GET /api/recruiter/dashboard — headline counts for the recruiter dashboard. */
+  @Get("recruiter/dashboard")
+  @UseGuards(RolesGuard)
+  @Roles("RECRUITER", "ADMIN")
+  dashboard(@CurrentUser() user: User): Promise<RecruiterDashboard> {
+    return this.applications.recruiterStats(user);
   }
 
   /** GET /api/recruiter/jobs/:id/applications — applicants for a recruiter's job. */
