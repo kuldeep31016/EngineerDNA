@@ -19,7 +19,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type { CandidateSummary, RecruiterDashboard } from "@engineerdna/shared";
+import { SEARCHABLE_SKILLS, type CandidateSummary, type RecruiterDashboard } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { Pagination } from "@/components/ui/Pagination";
 import { usePagination } from "@/hooks/usePagination";
@@ -158,6 +158,13 @@ function Dashboard() {
   const list = tab === "search" ? results : shortlist;
   const paged = usePagination(list ?? [], 10);
 
+  const q = input.trim().toLowerCase();
+  const suggestions = q
+    ? SEARCHABLE_SKILLS.filter(
+        (s) => s.toLowerCase().includes(q) && !skills.some((k) => k.toLowerCase() === s.toLowerCase()),
+      ).slice(0, 10)
+    : [];
+
   return (
     <div className="mt-6 space-y-4">
       <RecruiterStatsStrip />
@@ -179,7 +186,7 @@ function Dashboard() {
 
       {tab === "search" && (
         <div className="rounded-2xl border border-border bg-card p-5">
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
+          <div className="relative flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
             {skills.map((s) => (
               <span key={s} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
                 {s}
@@ -208,6 +215,24 @@ function Dashboard() {
               {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               Search
             </button>
+
+            {/* Skill autocomplete — pick from a curated vocabulary, no guessing. */}
+            {suggestions.length > 0 && (
+              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-lg border border-border bg-card py-1 shadow-xl">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      addSkill(s);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5 text-muted-foreground" /> {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="mt-3 flex flex-wrap gap-1.5">

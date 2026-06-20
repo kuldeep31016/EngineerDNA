@@ -83,3 +83,29 @@ export const switchRoleRequestSchema = z.object({
   role: z.enum(["STUDENT", "RECRUITER"]),
 });
 export type SwitchRoleInput = z.infer<typeof switchRoleRequestSchema>;
+
+/** Skills a recruiter can search by — drives the Find Talent autocomplete. The
+ *  search still matches against real candidate evidence; this is just the input
+ *  vocabulary so recruiters pick from a list instead of guessing spellings. */
+export const SEARCHABLE_SKILLS = [
+  "JavaScript", "TypeScript", "Python", "Java", "C", "C++", "C#", "Go", "Rust", "Kotlin", "Swift", "Ruby", "PHP",
+  "Scala", "Dart", "R", "Objective-C", "Elixir", "Haskell", "Perl", "Lua", "Shell", "SQL", "MATLAB",
+  "HTML", "CSS", "Sass", "Tailwind CSS", "Bootstrap", "React", "Next.js", "Vue.js", "Angular", "Svelte", "Redux",
+  "jQuery", "Three.js", "WebGL", "Electron",
+  "Node.js", "Express", "NestJS", "Django", "Flask", "FastAPI", "Spring", "Spring Boot", "Ruby on Rails", "Laravel",
+  "ASP.NET", ".NET", "Phoenix", "Gin",
+  "React Native", "Flutter", "Android", "iOS", "SwiftUI", "Jetpack Compose",
+  "PostgreSQL", "MySQL", "MongoDB", "Redis", "SQLite", "Cassandra", "DynamoDB", "Elasticsearch", "Neo4j", "MariaDB",
+  "Firebase", "Supabase", "Prisma", "Sequelize", "TypeORM",
+  "GraphQL", "REST", "gRPC", "WebSockets", "Socket.IO", "Microservices", "System Design",
+  "Docker", "Kubernetes", "Terraform", "Ansible", "Helm", "Nginx", "Linux", "Bash", "Git",
+  "AWS", "Azure", "Google Cloud", "GCP", "Vercel", "Netlify", "Heroku", "DigitalOcean", "Cloudflare",
+  "CI/CD", "GitHub Actions", "Jenkins", "GitLab CI", "CircleCI",
+  "Kafka", "RabbitMQ", "Celery", "Airflow", "Spark", "Hadoop",
+  "Jest", "Cypress", "Playwright", "Pytest", "JUnit", "Selenium", "Vitest", "Mocha",
+  "Webpack", "Vite", "Babel", "ESLint", "Prettier",
+  "TensorFlow", "PyTorch", "scikit-learn", "Pandas", "NumPy", "OpenCV", "Keras", "Hugging Face", "LangChain",
+  "OpenAI", "Machine Learning", "Deep Learning", "NLP", "Computer Vision", "Data Science",
+  "Tableau", "Power BI", "Solidity", "Web3", "Ethereum", "Blockchain", "Unity", "Unreal Engine",
+  "Data Structures", "Algorithms", "Operating Systems", "Computer Networks",
+];
