@@ -12,11 +12,13 @@ import {
   FileSearch,
   FolderGit2,
   Github,
+  Loader2,
   MapPin,
   MessagesSquare,
   ShieldCheck,
   Trophy,
   Users,
+  X,
 } from "lucide-react";
 import type { JobPost, ProctoringReport, RankedCandidate, RecruiterApplicant } from "@engineerdna/shared";
 import { APPLICATION_STATUSES, type ApplicationStatus } from "@engineerdna/shared";
@@ -25,6 +27,7 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 import { addShortlist, removeShortlist } from "@/services/recruiter";
 import { getJob, getJobRanking } from "@/services/jobs";
 import { getJobApplications, updateApplicationStatus } from "@/services/applications";
+import { inviteCandidate } from "@/services/messaging";
 
 type Tab = "ranking" | "applications";
 
@@ -53,6 +56,7 @@ function JobDetailContent() {
   const [appView, setAppView] = useState<"list" | "board">("list");
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [inviting, setInviting] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     void getJob(id).then(setJob).catch(() => {});
@@ -187,6 +191,7 @@ function JobDetailContent() {
                 open={open.has(c.id)}
                 onToggleSave={() => toggleSave(c.id)}
                 onToggleOpen={() => toggleOpen(c.id)}
+                onMessage={() => setInviting({ id: c.id, name: c.name })}
               />
             ))}
           </div>
@@ -220,7 +225,12 @@ function JobDetailContent() {
             {appView === "list" ? (
               <div className="space-y-3">
                 {applicants.map((a) => (
-                  <ApplicantCard key={a.applicationId} applicant={a} onStatusChange={changeStatus} />
+                  <ApplicantCard
+                    key={a.applicationId}
+                    applicant={a}
+                    onStatusChange={changeStatus}
+                    onMessage={() => setInviting({ id: a.studentId, name: a.name ?? "candidate" })}
+                  />
                 ))}
               </div>
             ) : (
@@ -228,6 +238,10 @@ function JobDetailContent() {
             )}
           </div>
         ))}
+
+      {inviting && (
+        <InviteCandidateModal candidateId={inviting.id} name={inviting.name} onClose={() => setInviting(null)} />
+      )}
     </main>
   );
 }
@@ -307,6 +321,67 @@ function matchColor(v: number): string {
   return "text-rose-400";
 }
 
+/** Invite a candidate to chat (creates a pending conversation). */
+function InviteCandidateModal({ candidateId, name, onClose }: { candidateId: string; name: string; onClose: () => void }) {
+  const router = useRouter();
+  const [message, setMessage] = useState(
+    `Hi ${name.split(" ")[0]}, I'd like to connect with you about an opportunity on EngineerDNA.`,
+  );
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function send() {
+    if (!message.trim() || sending) return;
+    setSending(true);
+    try {
+      await inviteCandidate(candidateId, message.trim());
+      setSent(true);
+    } catch {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        {sent ? (
+          <div className="py-4 text-center">
+            <p className="font-medium">Invitation sent</p>
+            <p className="mt-1 text-sm text-muted-foreground">You&apos;ll be able to chat once they accept.</p>
+            <div className="mt-4 flex justify-center gap-2">
+              <button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium">Close</button>
+              <button onClick={() => router.push("/messages")} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Go to messages</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 flex items-start justify-between">
+              <h2 className="text-lg font-bold">Message {name}</h2>
+              <button onClick={onClose} aria-label="Close" className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={5}
+              className="w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/60"
+            />
+            <button
+              onClick={send}
+              disabled={sending || !message.trim()}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessagesSquare className="h-4 w-4" />}
+              Send invitation
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Integrity badge for a candidate's proctored mock interview. */
 function IntegrityBadge({ p }: { p: ProctoringReport }) {
   const flags =
@@ -344,9 +419,11 @@ function IntegrityBadge({ p }: { p: ProctoringReport }) {
 function ApplicantCard({
   applicant: a,
   onStatusChange,
+  onMessage,
 }: {
   applicant: RecruiterApplicant;
   onStatusChange: (id: string, status: ApplicationStatus) => Promise<void>;
+  onMessage: () => void;
 }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -458,6 +535,12 @@ function ApplicantCard({
           <FileSearch className="h-3.5 w-3.5" />
           Evidence report
           <ChevronDown className={`h-3.5 w-3.5 transition-transform ${reportOpen ? "rotate-180" : ""}`} />
+        </button>
+        <button
+          onClick={onMessage}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <MessagesSquare className="h-3.5 w-3.5" /> Message
         </button>
         {a.githubUsername && (
           <a
@@ -574,6 +657,7 @@ function RankedCard({
   open,
   onToggleSave,
   onToggleOpen,
+  onMessage,
 }: {
   c: RankedCandidate;
   rank: number;
@@ -581,6 +665,7 @@ function RankedCard({
   open: boolean;
   onToggleSave: () => void;
   onToggleOpen: () => void;
+  onMessage: () => void;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -621,16 +706,25 @@ function RankedCard({
         <div className="text-right">
           <p className={`text-3xl font-bold tabular-nums ${scoreColor(c.rankScore)}`}>{c.rankScore}</p>
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">rank score</p>
+          {c.matchedSkills.length > 0 && (
+            <p className="mt-0.5 text-xs font-medium text-emerald-400">{c.matchScore}% match</p>
+          )}
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={onToggleOpen}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           Why this rank
           <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+        <button
+          onClick={onMessage}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <MessagesSquare className="h-4 w-4" /> Message
         </button>
         <button
           onClick={onToggleSave}
