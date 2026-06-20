@@ -9,13 +9,27 @@ import {
   Github,
   Loader2,
   RefreshCw,
+  Search,
+  SlidersHorizontal,
   Sparkles,
   Star,
 } from "lucide-react";
-import type { OssDifficulty, OssRecommendation, OssRepo } from "@engineerdna/shared";
+import {
+  OSS_LANGUAGES,
+  OSS_LICENSES,
+  OSS_SORTS,
+  OSS_STAR_TIERS,
+  OSS_TOPICS,
+  type OssDifficulty,
+  type OssRecommendation,
+  type OssRepo,
+  type OssSearchInput,
+  type OssSearchResult,
+} from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
-import { getOssRecommendations } from "@/services/oss";
+import { getOssRecommendations, searchOss } from "@/services/oss";
+import { getGithubStatus } from "@/services/github";
 
 const DIFF: Record<OssDifficulty, string> = {
   beginner: "bg-emerald-500/15 text-emerald-300",
@@ -23,29 +37,11 @@ const DIFF: Record<OssDifficulty, string> = {
   advanced: "bg-rose-500/15 text-rose-300",
 };
 
-// Popular languages on goodfirstissue.dev — curated good-first-issue lists per
-// language. Deep-linked (no scraping, no API cost). Slug must match their URLs.
-const GFI_LANGUAGES: { label: string; slug: string }[] = [
-  { label: "Python", slug: "python" },
-  { label: "TypeScript", slug: "typescript" },
-  { label: "JavaScript", slug: "javascript" },
-  { label: "Go", slug: "go" },
-  { label: "Java", slug: "java" },
-  { label: "C++", slug: "c++" },
-  { label: "C#", slug: "c#" },
-  { label: "Rust", slug: "rust" },
-  { label: "PHP", slug: "php" },
-  { label: "Ruby", slug: "ruby" },
-  { label: "Kotlin", slug: "kotlin" },
-  { label: "Shell", slug: "shell" },
-];
-const gfiUrl = (slug: string) => `https://goodfirstissue.dev/language/${encodeURIComponent(slug)}`;
-
 function OssContent() {
   const [data, setData] = useState<OssRecommendation | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [open, setOpen] = useState<Set<string>>(new Set());
-  const [view, setView] = useState<"matched" | "gfi">("matched");
+  const [view, setView] = useState<"matched" | "explore">("matched");
   const [lang, setLang] = useState<string | null>(null); // language filter on matched repos
 
   useEffect(() => {
@@ -107,15 +103,15 @@ function OssContent() {
           Matched to you
         </button>
         <button
-          onClick={() => setView("gfi")}
-          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === "gfi" ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setView("explore")}
+          className={`rounded-md px-3 py-1.5 font-medium transition-colors ${view === "explore" ? "bg-primary/10 text-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
-          Browse by language
+          Explore by filters
         </button>
       </div>
 
-      {view === "gfi" ? (
-        <GfiBrowser skills={data.available ? data.skills : []} />
+      {view === "explore" ? (
+        <ExploreView />
       ) : !data.available ? (
         <Empty reason={data.reason} />
       ) : (
@@ -185,45 +181,145 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
  * Pure deep links — no scraping, no API calls. The user's own matched skills
  * are highlighted first so the most relevant languages are one click away.
  */
-function GfiBrowser({ skills }: { skills: string[] }) {
-  const skillSet = new Set(skills.map((s) => s.toLowerCase()));
-  const sorted = [...GFI_LANGUAGES].sort((a, b) => {
-    const am = skillSet.has(a.label.toLowerCase()) ? 0 : 1;
-    const bm = skillSet.has(b.label.toLowerCase()) ? 0 : 1;
-    return am - bm;
-  });
+/* ---------------- Explore: filter-driven GitHub search ---------------- */
+
+const selectCls =
+  "rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none transition-colors focus:border-primary/60";
+
+function ExploreView() {
+  const [connected, setConnected] = useState<boolean | null>(null);
+  const [filters, setFilters] = useState<OssSearchInput>({ sort: "stars" });
+  const [result, setResult] = useState<OssSearchResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    getGithubStatus()
+      .then((s) => setConnected(s.connected))
+      .catch(() => setConnected(false));
+  }, []);
+
+  const set = <K extends keyof OssSearchInput>(k: K, v: OssSearchInput[K]) =>
+    setFilters((f) => ({ ...f, [k]: v }));
+  const toggle = (k: "goodFirstIssue" | "helpWanted" | "recentlyUpdated") =>
+    setFilters((f) => ({ ...f, [k]: !f[k] }));
+
+  async function run() {
+    setLoading(true);
+    try {
+      setResult(await searchOss(filters));
+    } catch {
+      setResult({ repos: [], total: 0, query: "", cached: false });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (connected === false) {
+    return <Empty reason="Connect your GitHub account to explore repositories." />;
+  }
+
   return (
     <div className="mt-6 space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Hand-picked beginner-friendly issues from popular open-source projects, grouped by language.
-        Powered by{" "}
-        <a href="https://goodfirstissue.dev" target="_blank" rel="noreferrer" className="text-primary hover:underline">
-          goodfirstissue.dev
-        </a>
-        .
-      </p>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-        {sorted.map((l) => {
-          const mine = skillSet.has(l.label.toLowerCase());
-          return (
-            <a
-              key={l.slug}
-              href={gfiUrl(l.slug)}
-              target="_blank"
-              rel="noreferrer"
-              className={`group flex items-center justify-between rounded-xl border px-4 py-3 transition-colors ${
-                mine ? "border-primary/40 bg-primary/5" : "border-border bg-card hover:border-primary/40"
-              }`}
-            >
-              <span className="flex items-center gap-2 text-sm font-medium">
-                {l.label}
-                {mine && <Sparkles className="h-3 w-3 text-primary" />}
-              </span>
-              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground transition-colors group-hover:text-foreground" />
-            </a>
-          );
-        })}
+      {/* Filters */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+          <SlidersHorizontal className="h-4 w-4 text-primary" /> Filters
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select className={selectCls} value={filters.language ?? ""} onChange={(e) => set("language", e.target.value || undefined)}>
+            <option value="">Any language</option>
+            {OSS_LANGUAGES.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+          <select className={selectCls} value={filters.topic ?? ""} onChange={(e) => set("topic", e.target.value || undefined)}>
+            <option value="">Any topic</option>
+            {OSS_TOPICS.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select
+            className={selectCls}
+            value={filters.minStars ?? ""}
+            onChange={(e) => set("minStars", e.target.value ? Number(e.target.value) : undefined)}
+          >
+            <option value="">Any stars</option>
+            {OSS_STAR_TIERS.map((s) => (
+              <option key={s} value={s}>{s.toLocaleString()}+ stars</option>
+            ))}
+          </select>
+          <select className={selectCls} value={filters.license ?? ""} onChange={(e) => set("license", e.target.value || undefined)}>
+            <option value="">Any license</option>
+            {OSS_LICENSES.map((l) => (
+              <option key={l.value} value={l.value}>{l.label}</option>
+            ))}
+          </select>
+          <select className={selectCls} value={filters.sort} onChange={(e) => set("sort", e.target.value as OssSearchInput["sort"])}>
+            {OSS_SORTS.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {(
+            [
+              ["goodFirstIssue", "Good first issues"],
+              ["helpWanted", "Help wanted"],
+              ["recentlyUpdated", "Recently updated"],
+            ] as const
+          ).map(([k, label]) => (
+            <FilterChip key={k} active={Boolean(filters[k])} onClick={() => toggle(k)}>
+              {label}
+            </FilterChip>
+          ))}
+          <button
+            onClick={run}
+            disabled={loading}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Search
+          </button>
+        </div>
       </div>
+
+      {/* Results */}
+      {result && (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {result.total} repositories · <code className="rounded bg-secondary/50 px-1.5 py-0.5">{result.query}</code>
+            {result.cached && <span className="ml-2 text-emerald-400">cached</span>}
+          </p>
+          {result.repos.length === 0 ? (
+            <div className="rounded-xl border border-border bg-card px-6 py-14 text-center text-sm text-muted-foreground">
+              No repositories match these filters — loosen them and try again.
+            </div>
+          ) : (
+            result.repos.map((repo) => (
+              <RepoCard
+                key={repo.fullName}
+                repo={repo}
+                open={open.has(repo.fullName)}
+                onToggle={() =>
+                  setOpen((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(repo.fullName)) next.delete(repo.fullName);
+                    else next.add(repo.fullName);
+                    return next;
+                  })
+                }
+              />
+            ))
+          )}
+        </>
+      )}
+      {!result && !loading && (
+        <p className="text-sm text-muted-foreground">
+          Pick filters above and hit Search — results are matched on GitHub and cached, so they load fast.
+        </p>
+      )}
     </div>
   );
 }
