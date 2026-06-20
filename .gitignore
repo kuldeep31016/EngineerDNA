@@ -38,3 +38,4 @@ coverage/
 
 # Docker volumes (local)
 docker/data/
+apps/api/uploads/

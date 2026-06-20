@@ -1,11 +1,14 @@
 import "reflect-metadata";
+import { mkdirSync } from "node:fs";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import { ValidationPipe, Logger } from "@nestjs/common";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { validateEnv } from "./common/validate-env";
+import { UPLOADS_DIR } from "./messaging/uploads";
 
 /**
  * API bootstrap. All HTTP routes are namespaced under `/api`.
@@ -15,7 +18,11 @@ import { validateEnv } from "./common/validate-env";
 async function bootstrap(): Promise<void> {
   validateEnv();
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Serve uploaded chat attachments statically at /uploads (unguessable names).
+  mkdirSync(UPLOADS_DIR, { recursive: true });
+  app.useStaticAssets(UPLOADS_DIR, { prefix: "/uploads/" });
 
   app.setGlobalPrefix("api");
   // Security headers. CSP is left to the web app (which serves the HTML).

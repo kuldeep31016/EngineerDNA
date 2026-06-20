@@ -7,7 +7,7 @@ import {
   type ConversationDetail,
   type SendMessageRequest,
 } from "@engineerdna/shared";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, API_BASE_URL, ApiError } from "@/lib/api";
 
 /** Recruiter opens a conversation with a candidate (invitation). */
 export async function inviteCandidate(candidateId: string, message: string): Promise<Conversation> {
@@ -43,4 +43,17 @@ export async function sendMessage(id: string, input: SendMessageRequest): Promis
 export async function getMessagesUnreadCount(): Promise<number> {
   const r = await apiFetch<{ count: number }>("/messages/unread-count");
   return r.count;
+}
+
+/** Upload a file to a conversation (multipart — bypasses the JSON fetch wrapper). */
+export async function uploadAttachment(id: string, file: File): Promise<ChatMessage> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/messages/${id}/attachment`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) throw new ApiError(res.status, "Upload failed");
+  return chatMessageSchema.parse(await res.json());
 }

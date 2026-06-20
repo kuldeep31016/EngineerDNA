@@ -1,5 +1,17 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import type { User } from "@prisma/client";
+import { MAX_ATTACHMENT_BYTES } from "./uploads";
 import {
   inviteRequestSchema,
   respondInviteRequestSchema,
@@ -70,5 +82,16 @@ export class MessagingController {
     @Body(new ZodValidationPipe(sendMessageRequestSchema)) body: SendMessageRequest,
   ): Promise<ChatMessage> {
     return this.messaging.send(user, id, body);
+  }
+
+  /** POST /api/messages/:id/attachment — share a file (only once accepted). */
+  @Post(":id/attachment")
+  @UseInterceptors(FileInterceptor("file", { limits: { fileSize: MAX_ATTACHMENT_BYTES } }))
+  sendAttachment(
+    @CurrentUser() user: User,
+    @Param("id") id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ): Promise<ChatMessage> {
+    return this.messaging.sendAttachment(user, id, file);
   }
 }

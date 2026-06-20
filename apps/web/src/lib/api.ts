@@ -1,6 +1,9 @@
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
+/** API server origin (no /api prefix) — for static assets like /uploads. */
+export const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
+
 /** Error thrown for non-2xx API responses, carrying the HTTP status. */
 export class ApiError extends Error {
   constructor(
