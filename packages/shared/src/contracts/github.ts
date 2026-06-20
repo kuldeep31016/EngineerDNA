@@ -17,6 +17,8 @@ export const repositorySchema = z.object({
   stars: z.number(),
   forks: z.number(),
   isPrivate: z.boolean(),
+  isFork: z.boolean().default(false),
+  ownCommits: z.number().default(0),
   htmlUrl: z.string(),
   pushedAt: z.string().nullable(),
   selectedForAnalysis: z.boolean(),

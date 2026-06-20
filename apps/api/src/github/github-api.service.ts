@@ -15,6 +15,7 @@ export interface GithubRepo {
   default_branch: string | null;
   pushed_at: string | null;
   created_at: string | null;
+  fork: boolean;
 }
 
 interface GithubUser {
@@ -155,6 +156,23 @@ export class GithubApiService {
     const data = (await res.json()) as { content?: string; encoding?: string };
     if (!data.content || data.encoding !== "base64") return null;
     return Buffer.from(data.content, "base64").toString("utf8");
+  }
+
+  /**
+   * How many commits in a repo were AUTHORED by the given GitHub login. This is
+   * the trust gate: a forked/cloned repo the user never committed to returns 0,
+   * so it can be excluded from evidence. Capped at 100 (one page) — the exact
+   * number past that doesn't change any decision, and it keeps the call cheap.
+   * GitHub matches `author` by account identity, so email aliases are handled.
+   */
+  async getAuthoredCommitCount(token: string, fullName: string, login: string): Promise<number> {
+    const res = await fetch(
+      `${this.api}/repos/${fullName}/commits?author=${encodeURIComponent(login)}&per_page=100`,
+      { headers: this.headers(token) },
+    );
+    if (!res.ok) return 0; // empty repo (409), no access, etc. — treat as no proof
+    const data = (await res.json()) as unknown[];
+    return Array.isArray(data) ? data.length : 0;
   }
 
   private headers(token: string): Record<string, string> {

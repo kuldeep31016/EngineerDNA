@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Repository" ADD COLUMN "isFork" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Repository" ADD COLUMN "ownCommits" INTEGER NOT NULL DEFAULT 0;

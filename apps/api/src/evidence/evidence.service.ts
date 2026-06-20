@@ -10,6 +10,7 @@ import type {
 import { PrismaService } from "../prisma/prisma.service";
 import { TokenCipherService } from "../common/security/token-cipher.service";
 import { RepoFactsService } from "../analysis/repo-facts.service";
+import { GithubApiService } from "../github/github-api.service";
 import { extractEvidence } from "./evidence-extractor";
 
 @Injectable()
@@ -18,6 +19,7 @@ export class EvidenceService {
     private readonly prisma: PrismaService,
     private readonly cipher: TokenCipherService,
     private readonly repoFacts: RepoFactsService,
+    private readonly github: GithubApiService,
   ) {}
 
   /** Run deterministic extraction for one repo and persist its evidence. */
@@ -27,6 +29,19 @@ export class EvidenceService {
       where: { id: repo.githubAccountId },
     });
     const token = this.cipher.decrypt(account.accessToken);
+
+    // TRUST GATE: only the user's OWN work becomes evidence. Count commits
+    // authored by the connected GitHub account; a fork (or any repo) they never
+    // committed to contributes nothing — we won't pass off others' code as theirs.
+    const ownCommits = await this.github.getAuthoredCommitCount(token, repo.fullName, account.githubLogin);
+    if (ownCommits === 0) {
+      await this.prisma.$transaction([
+        this.prisma.techEvidence.deleteMany({ where: { repositoryId: repo.id } }),
+        this.prisma.repository.update({ where: { id: repo.id }, data: { ownCommits: 0 } }),
+      ]);
+      return [];
+    }
+
     const facts = await this.repoFacts.gather(token, repo);
 
     const items = extractEvidence({
@@ -37,7 +52,7 @@ export class EvidenceService {
 
     const firstSeenAt = repo.repoCreatedAt ?? repo.pushedAt ?? null;
 
-    // Replace this repo's evidence atomically.
+    // Replace this repo's evidence atomically (and record the own-commit count).
     await this.prisma.$transaction([
       this.prisma.techEvidence.deleteMany({ where: { repositoryId: repo.id } }),
       this.prisma.techEvidence.createMany({
@@ -53,6 +68,7 @@ export class EvidenceService {
           firstSeenAt,
         })),
       }),
+      this.prisma.repository.update({ where: { id: repo.id }, data: { ownCommits } }),
     ]);
 
     return items;
