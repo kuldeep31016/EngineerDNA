@@ -6,6 +6,8 @@ import { Briefcase, Building2, Clock, Filter, MapPin, Search, X } from "lucide-r
 import { JOB_TYPES, JOB_WORK_MODES, type JobType, type JobWorkMode, type PublicJob } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { listPublicJobs } from "@/services/public-jobs";
 
 const typeLabel = (t: JobType) => JOB_TYPES.find((x) => x.value === t)?.label ?? t;
@@ -117,6 +119,7 @@ function JobsContent() {
   const [type, setType] = useState("");
   const [workMode, setWorkMode] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paged = usePagination(jobs, 9);
 
   function load(filters: { q?: string; type?: string; workMode?: string }) {
     listPublicJobs(filters)
@@ -238,11 +241,24 @@ function JobsContent() {
           <p className="text-sm text-muted-foreground">Try adjusting your filters.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {jobs.map((j) => (
-            <JobCard key={j.id} job={j} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {paged.pageItems.map((j) => (
+              <JobCard key={j.id} job={j} />
+            ))}
+          </div>
+          <div className="mt-5">
+            <Pagination
+              page={paged.page}
+              totalPages={paged.totalPages}
+              onPageChange={paged.setPage}
+              from={paged.from}
+              to={paged.to}
+              total={paged.total}
+              label="jobs"
+            />
+          </div>
+        </>
       )}
     </main>
   );

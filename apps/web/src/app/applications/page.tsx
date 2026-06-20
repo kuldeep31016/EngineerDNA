@@ -12,6 +12,8 @@ import {
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { getMyApplications, getMyApplicationStats } from "@/services/applications";
 
 function statusInfo(status: ApplicationStatus): { value: ApplicationStatus; label: string; color: string } {
@@ -85,9 +87,10 @@ function ApplicationsContent() {
       .finally(() => setLoaded(true));
   }, []);
 
-  if (!loaded) return <LoadingScreen label="Loading your applications…" />;
-
   const filtered = filter ? apps.filter((a) => a.status === filter) : apps;
+  const paged = usePagination(filtered, 10);
+
+  if (!loaded) return <LoadingScreen label="Loading your applications…" />;
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-10">
@@ -161,9 +164,18 @@ function ApplicationsContent() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((app) => (
+          {paged.pageItems.map((app) => (
             <ApplicationCard key={app.id} app={app} />
           ))}
+          <Pagination
+            page={paged.page}
+            totalPages={paged.totalPages}
+            onPageChange={paged.setPage}
+            from={paged.from}
+            to={paged.to}
+            total={paged.total}
+            label="applications"
+          />
         </div>
       )}
     </main>

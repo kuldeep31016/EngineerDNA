@@ -13,6 +13,8 @@ import {
 } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { createJob, deleteJob, listJobs, updateJob } from "@/services/jobs";
 
 const typeLabel = (t: JobType) => JOB_TYPES.find((x) => x.value === t)?.label ?? t;
@@ -24,6 +26,7 @@ function JobsContent() {
   const [jobs, setJobs] = useState<JobPost[]>([]);
   const [editing, setEditing] = useState<JobPost | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const paged = usePagination(jobs, 10);
 
   const refresh = () => listJobs().then(setJobs).catch(() => {});
   useEffect(() => {
@@ -80,7 +83,7 @@ function JobsContent() {
         </div>
       ) : (
         <div className="mt-6 space-y-3">
-          {jobs.map((job) => (
+          {paged.pageItems.map((job) => (
             <JobCard
               key={job.id}
               job={job}
@@ -90,6 +93,15 @@ function JobsContent() {
               onMatches={() => router.push(`/recruiter/jobs/${job.id}`)}
             />
           ))}
+          <Pagination
+            page={paged.page}
+            totalPages={paged.totalPages}
+            onPageChange={paged.setPage}
+            from={paged.from}
+            to={paged.to}
+            total={paged.total}
+            label="job posts"
+          />
         </div>
       )}
 

@@ -7,6 +7,8 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import { RepositoryCard } from "@/components/github/RepositoryCard";
 import {
   disconnectGithub,
@@ -22,6 +24,7 @@ function RepositoriesContent() {
   const [repos, setRepos] = useState<Repository[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const paged = usePagination(repos, 10);
 
   const load = useCallback(async () => {
     const s = await getGithubStatus();
@@ -127,9 +130,18 @@ function RepositoriesContent() {
             </Card>
           ) : (
             <div className="space-y-3">
-              {repos.map((repo) => (
+              {paged.pageItems.map((repo) => (
                 <RepositoryCard key={repo.id} repo={repo} onToggle={(sel) => toggle(repo.id, sel)} />
               ))}
+              <Pagination
+                page={paged.page}
+                totalPages={paged.totalPages}
+                onPageChange={paged.setPage}
+                from={paged.from}
+                to={paged.to}
+                total={paged.total}
+                label="repositories"
+              />
             </div>
           )}
         </>

@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import type { CandidateProfile, CandidateSummary } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   addShortlist,
   getCandidate,
@@ -123,6 +125,7 @@ function Dashboard() {
   }
 
   const list = tab === "search" ? results : shortlist;
+  const paged = usePagination(list ?? [], 10);
 
   return (
     <div className="mt-6 space-y-4">
@@ -202,7 +205,7 @@ function Dashboard() {
         />
       ) : (
         <div className="space-y-3">
-          {list.map((c) => (
+          {paged.pageItems.map((c) => (
             <CandidateCard
               key={c.id}
               c={c}
@@ -211,6 +214,15 @@ function Dashboard() {
               onView={() => setDetailId(c.id)}
             />
           ))}
+          <Pagination
+            page={paged.page}
+            totalPages={paged.totalPages}
+            onPageChange={paged.setPage}
+            from={paged.from}
+            to={paged.to}
+            total={paged.total}
+            label="candidates"
+          />
         </div>
       )}
 
