@@ -257,7 +257,7 @@ function Dashboard() {
           icon={tab === "search" ? Search : Bookmark}
           text={
             tab === "search"
-              ? "No verified candidates match yet. Candidates appear once they make their passport public and build evidence."
+              ? "No verified candidates match these skills yet. Candidates appear once they connect GitHub and build evidence from their public repositories."
               : "Your shortlist is empty. Bookmark candidates from Search."
           }
         />

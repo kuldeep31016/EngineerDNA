@@ -35,7 +35,6 @@ export class RankingService {
   /** Rank verified candidates against a set of required skills. */
   async rankBySkills(recruiter: User, skills: string[]): Promise<RankingResult> {
     const profiles = await this.prisma.profile.findMany({
-      where: { isPublic: true },
       include: { user: { select: { id: true, name: true, profileImage: true } } },
     });
 

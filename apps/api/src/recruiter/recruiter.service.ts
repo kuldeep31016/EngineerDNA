@@ -49,7 +49,7 @@ export class RecruiterService {
   /** A candidate's full VERIFIED profile — public repos and evidence only. */
   async getCandidate(recruiter: User, candidateId: string): Promise<CandidateProfile> {
     const profile = await this.prisma.profile.findFirst({
-      where: { userId: candidateId, isPublic: true },
+      where: { userId: candidateId },
       include: { user: { select: { id: true, name: true, profileImage: true } } },
     });
     if (!profile) throw new NotFoundException("Candidate not found");
@@ -126,7 +126,7 @@ export class RecruiterService {
 
   async addShortlist(recruiter: User, candidateId: string): Promise<void> {
     const exists = await this.prisma.profile.findFirst({
-      where: { userId: candidateId, isPublic: true },
+      where: { userId: candidateId },
       select: { id: true },
     });
     if (!exists) throw new NotFoundException("Candidate not found");
@@ -143,9 +143,12 @@ export class RecruiterService {
     });
   }
 
+  // Candidates with a passport are searchable; whether they actually appear is
+  // gated by having PUBLIC-repo USED evidence (buildSummary returns null
+  // otherwise). We never expose private repositories, so this only surfaces work
+  // that is already public on GitHub.
   private async publicProfiles(): Promise<ProfileWithUser[]> {
     return this.prisma.profile.findMany({
-      where: { isPublic: true },
       include: { user: { select: { id: true, name: true, profileImage: true } } },
     });
   }
