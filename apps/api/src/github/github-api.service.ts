@@ -95,8 +95,15 @@ export class GithubApiService {
   }
 
   /** Search public repositories (e.g. by language/topic + good-first-issues). */
-  async searchRepositories(token: string, query: string, perPage = 12): Promise<GithubSearchRepo[]> {
-    const url = `${this.api}/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${perPage}`;
+  async searchRepositories(
+    token: string,
+    query: string,
+    perPage = 12,
+    sort: "stars" | "forks" | "updated" | "best" = "stars",
+  ): Promise<GithubSearchRepo[]> {
+    // "best" = GitHub's default relevance ranking (omit sort/order).
+    const sortParam = sort === "best" ? "" : `&sort=${sort}&order=desc`;
+    const url = `${this.api}/search/repositories?q=${encodeURIComponent(query)}${sortParam}&per_page=${perPage}`;
     const res = await fetch(url, { headers: this.headers(token) });
     if (!res.ok) return [];
     const data = (await res.json()) as { items?: GithubSearchRepo[] };

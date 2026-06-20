@@ -1,7 +1,14 @@
 import { createHash } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import type { Prisma, User } from "@prisma/client";
-import type { OssDifficulty, OssIssue, OssRecommendation, OssRepo } from "@engineerdna/shared";
+import type {
+  OssDifficulty,
+  OssIssue,
+  OssRecommendation,
+  OssRepo,
+  OssSearchInput,
+  OssSearchResult,
+} from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EvidenceService } from "../evidence/evidence.service";
 import {
@@ -15,6 +22,10 @@ const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const MAX_SKILLS = 4;
 const MAX_REPOS = 9;
 const REPOS_WITH_ISSUES = 6;
+// In-memory cache for the Explore search — the SAME filter combo from any user
+// reuses one GitHub call, so we stay well under GitHub's search rate limit and
+// pages load instantly. (Redis is the multi-instance scale path.)
+const SEARCH_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 @Injectable()
 export class OssService {
@@ -24,6 +35,48 @@ export class OssService {
     private readonly github: GithubApiService,
     private readonly cipher: TokenCipherService,
   ) {}
+
+  private readonly searchCache = new Map<string, { at: number; result: OssSearchResult }>();
+
+  /**
+   * Explore: filter-driven GitHub repository search. Builds a GitHub Search
+   * query from the chosen filters and caches the result in memory by query, so
+   * repeated/shared filter combos don't re-hit GitHub (rate-limit friendly).
+   */
+  async search(user: User, filters: OssSearchInput): Promise<OssSearchResult> {
+    const account = await this.prisma.githubAccount.findUnique({ where: { userId: user.id } });
+    if (!account) return { repos: [], total: 0, query: "", cached: false };
+
+    const query = buildSearchQuery(filters);
+    const key = `${query}::${filters.sort}`;
+
+    const hit = this.searchCache.get(key);
+    if (hit && Date.now() - hit.at < SEARCH_CACHE_TTL_MS) {
+      return { ...hit.result, cached: true };
+    }
+
+    const token = this.cipher.decrypt(account.accessToken);
+    const found = await this.github.searchRepositories(token, query, 18, filters.sort).catch(() => []);
+
+    const repos: OssRepo[] = found
+      .filter((r) => !r.archived)
+      .map((r) => ({
+        fullName: r.full_name,
+        description: r.description,
+        url: r.html_url,
+        language: r.language,
+        stars: r.stargazers_count,
+        topics: (r.topics ?? []).slice(0, 6),
+        matchedSkill: filters.language ?? filters.topic ?? "search",
+        goodFirstIssues: 0,
+        contributeUrl: `${r.html_url}/contribute`,
+        issues: [],
+      }));
+
+    const result: OssSearchResult = { repos, total: repos.length, query, cached: false };
+    this.searchCache.set(key, { at: Date.now(), result });
+    return result;
+  }
 
   /** Recommend OSS repos/issues for the developer's verified skills (cached). */
   async getRecommendations(user: User, refresh = false): Promise<OssRecommendation> {
@@ -119,6 +172,30 @@ export class OssService {
 
 function unavailable(reason: string): OssRecommendation {
   return { available: false, reason, skills: [], repos: [], generatedAt: new Date().toISOString() };
+}
+
+// GitHub's language qualifier uses lowercase slugs for a few names.
+const GH_LANG: Record<string, string> = { "c++": "cpp", "c#": "csharp" };
+function ghLang(lang: string): string {
+  const key = lang.toLowerCase();
+  return GH_LANG[key] ?? key;
+}
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Turn the Explore filters into a single GitHub Search query string. */
+function buildSearchQuery(f: OssSearchInput): string {
+  const parts = ["archived:false"];
+  if (f.language) parts.push(`language:${ghLang(f.language)}`);
+  if (f.topic) parts.push(`topic:${f.topic}`);
+  if (f.license) parts.push(`license:${f.license}`);
+  if (f.goodFirstIssue) parts.push("good-first-issues:>0");
+  if (f.helpWanted) parts.push("help-wanted-issues:>0");
+  if (f.recentlyUpdated) parts.push(`pushed:>${isoDaysAgo(30)}`);
+  // Always include a positive star qualifier — GitHub search needs a real term.
+  parts.push(`stars:>=${Math.max(f.minStars ?? 0, 1)}`);
+  return parts.join(" ");
 }
 
 /** Pick the strongest verified skills to search with — languages first. */
