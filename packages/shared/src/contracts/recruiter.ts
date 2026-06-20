@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { scoreSchema } from "./score";
+import { proctoringReportSchema } from "./interview";
 
 /**
  * Module 14 — Recruiter Dashboard. Recruiters search VERIFIED candidate profiles
@@ -20,6 +21,11 @@ export const candidateSummarySchema = z.object({
   matchScore: z.number(),
   publicRepoCount: z.number(),
   shortlisted: z.boolean(),
+  // Recruiter-facing hiring signals (filled by the student).
+  college: z.string().nullable(),
+  experienceYears: z.number().nullable(),
+  availability: z.string().nullable(),
+  expectedSalary: z.string().nullable(),
 });
 export type CandidateSummary = z.infer<typeof candidateSummarySchema>;
 
@@ -39,10 +45,24 @@ export const candidateRepoSchema = z.object({
 });
 export type CandidateRepo = z.infer<typeof candidateRepoSchema>;
 
+/** A project shown on the candidate's full profile (from their passport). */
+export const candidateProjectSchema = z.object({
+  name: z.string(),
+  description: z.string().nullable(),
+  url: z.string().nullable(),
+});
+export type CandidateProject = z.infer<typeof candidateProjectSchema>;
+
 export const candidateProfileSchema = candidateSummarySchema.extend({
+  about: z.string().nullable(),
+  githubUsername: z.string().nullable(),
+  portfolioSlug: z.string().nullable(),
+  interviewScore: z.number().nullable(),
+  interviewIntegrity: proctoringReportSchema.nullable(),
   scores: z.array(scoreSchema),
   verifiedSkills: z.array(candidateSkillSchema),
   topRepos: z.array(candidateRepoSchema),
+  projects: z.array(candidateProjectSchema),
 });
 export type CandidateProfile = z.infer<typeof candidateProfileSchema>;
 

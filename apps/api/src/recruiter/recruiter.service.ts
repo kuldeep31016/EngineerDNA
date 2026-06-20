@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import type { Profile, User } from "@prisma/client";
+import { proctoringReportSchema } from "@engineerdna/shared";
 import type {
   CandidateProfile,
   CandidateSearchResult,
@@ -57,17 +58,35 @@ export class RecruiterService {
     const { scores, overall, topStrengths } = computeDnaScores(items);
     const used = items.filter((i) => i.strength === "USED");
 
-    const repos = await this.prisma.repository.findMany({
-      where: { account: { userId: candidateId }, isPrivate: false },
-      orderBy: [{ stars: "desc" }, { pushedAt: "desc" }],
-      take: 6,
-      select: { name: true, description: true, language: true, stars: true, htmlUrl: true },
-    });
+    const [repos, portfolio, bestInterview] = await Promise.all([
+      this.prisma.repository.findMany({
+        where: { account: { userId: candidateId }, isPrivate: false },
+        orderBy: [{ stars: "desc" }, { pushedAt: "desc" }],
+        take: 6,
+        select: { name: true, description: true, language: true, stars: true, htmlUrl: true },
+      }),
+      this.prisma.portfolio.findUnique({
+        where: { userId: candidateId },
+        select: { slug: true, published: true },
+      }),
+      this.prisma.interview.findFirst({
+        where: { userId: candidateId, status: "EVALUATED", overallScore: { not: null } },
+        orderBy: { overallScore: "desc" },
+        select: { overallScore: true, proctoring: true },
+      }),
+    ]);
 
     const shortlisted = await this.shortlistedIds(recruiter.id);
 
     return {
       ...summaryFields(profile, overall, topStrengths, used, [], overall, shortlisted.has(candidateId)),
+      about: profile.about ?? null,
+      githubUsername: profile.githubUsername ?? null,
+      portfolioSlug: portfolio?.published ? (portfolio.slug ?? null) : null,
+      interviewScore: bestInterview?.overallScore ?? null,
+      interviewIntegrity: bestInterview?.proctoring
+        ? proctoringReportSchema.parse(bestInterview.proctoring)
+        : null,
       scores,
       verifiedSkills: used
         .map((u) => ({ technology: u.technology, category: u.category, repositoryCount: u.repositoryCount }))
@@ -80,6 +99,10 @@ export class RecruiterService {
         stars: r.stars,
         htmlUrl: r.htmlUrl,
       })),
+      projects: ((profile.projects as unknown as { name?: string; description?: string; url?: string }[]) ?? [])
+        .filter((p) => p?.name)
+        .slice(0, 12)
+        .map((p) => ({ name: p.name!, description: p.description || null, url: p.url || null })),
     };
   }
 
@@ -175,6 +198,10 @@ function summaryFields(
     matchScore,
     publicRepoCount,
     shortlisted,
+    college: profile.college ?? null,
+    experienceYears: profile.experienceYears ?? null,
+    availability: profile.availability ?? null,
+    expectedSalary: profile.expectedSalary ?? null,
   };
 }
 
