@@ -41,6 +41,7 @@ import {
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useAuth } from "@/hooks/useAuth";
 import { useFaceMonitor } from "@/hooks/useFaceMonitor";
+import { useObjectMonitor } from "@/hooks/useObjectMonitor";
 import { useProctoring } from "@/hooks/useProctoring";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import {
@@ -639,7 +640,8 @@ function Live({
   const stt = useSpeechRecognition();
   const finishingRef = useRef(false);
   const proc = useProctoring(true, () => {}); // termination handled via the effect below
-  const face = useFaceMonitor(videoRef, true, proc.registerFaceEvent); // in-browser camera check
+  const face = useFaceMonitor(videoRef, true, proc.registerVisionEvent); // face count + gaze
+  useObjectMonitor(videoRef, true, proc.registerVisionEvent); // phone detection
 
   const q = interview.questions[idx]!;
   const isFinalQuestion = interview.questions.length >= TOTAL_QUESTIONS && idx === interview.questions.length - 1;
@@ -970,13 +972,22 @@ function Orb({ speaking, thinking }: { speaking: boolean; thinking: boolean }) {
 /** Integrity / proctoring summary on the report — what the recruiter trusts. */
 function IntegrityPanel({ p }: { p: ProctoringReport }) {
   const clean =
-    p.fullscreenExits + p.tabSwitches + p.focusLost + p.noFaceEvents + p.multipleFaceEvents === 0;
+    p.fullscreenExits +
+      p.tabSwitches +
+      p.focusLost +
+      p.noFaceEvents +
+      p.multipleFaceEvents +
+      p.lookAwayEvents +
+      p.phoneEvents ===
+    0;
   const stats = [
     { label: "Fullscreen exits", value: p.fullscreenExits },
     { label: "Tab switches", value: p.tabSwitches },
     { label: "Window left", value: p.focusLost },
     { label: "No face", value: p.noFaceEvents },
     { label: "Multiple faces", value: p.multipleFaceEvents },
+    { label: "Looked away", value: p.lookAwayEvents },
+    { label: "Phone seen", value: p.phoneEvents },
   ];
   return (
     <div
@@ -1005,7 +1016,7 @@ function IntegrityPanel({ p }: { p: ProctoringReport }) {
           {p.terminated ? "Ended on violations" : clean ? "Clean session" : "Flagged"}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {stats.map((s) => (
           <div key={s.label} className="rounded-lg border border-border bg-background/40 px-3 py-2.5 text-center">
             <p className="text-2xl font-bold tabular-nums">{s.value}</p>
