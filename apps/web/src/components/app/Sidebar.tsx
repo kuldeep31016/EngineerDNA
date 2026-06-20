@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
+import { useMessagesUnread } from "@/hooks/useMessagesUnread";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -49,6 +50,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const unread = useMessagesUnread();
 
   const handleLogout = async () => {
     await logout();
@@ -80,7 +82,12 @@ export function Sidebar() {
                 )}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/messages" && unread > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
               </Link>
             );
           })}

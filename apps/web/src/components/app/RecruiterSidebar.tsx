@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Briefcase, CreditCard, LogOut, MessagesSquare, Users } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
+import { useMessagesUnread } from "@/hooks/useMessagesUnread";
 import { cn } from "@/lib/utils";
 import { getSubscription } from "@/services/billing";
 
@@ -26,6 +27,7 @@ export function RecruiterSidebar() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [active, setActive] = useState<boolean | null>(null);
+  const unread = useMessagesUnread();
 
   useEffect(() => {
     if (user?.role === "ADMIN") {
@@ -68,7 +70,12 @@ export function RecruiterSidebar() {
                 )}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.href === "/messages" && unread > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1 text-[10px] font-semibold text-white">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
               </Link>
             );
           })}
