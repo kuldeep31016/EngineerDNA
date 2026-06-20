@@ -37,7 +37,8 @@ import type {
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { Button } from "@/components/ui/button";
-import { getAnalysis, getRepository, startAnalysis } from "@/services/analysis";
+import { FileTree } from "@/components/repo/FileTree";
+import { getAnalysis, getRepository, getRepoTree, startAnalysis } from "@/services/analysis";
 import { buildRepoEvidence, getRepoEvidence } from "@/services/evidence";
 import { getIntelligence } from "@/services/intelligence";
 
@@ -139,7 +140,7 @@ function ReportContent() {
         {!analysis && <EmptyState />}
         {isRunning && <RunningState />}
         {analysis?.status === "FAILED" && <FailedState error={analysis.error} />}
-        {done && <ReportView report={analysis!.report!} model={analysis!.model} updatedAt={analysis!.updatedAt} />}
+        {done && <ReportView report={analysis!.report!} model={analysis!.model} updatedAt={analysis!.updatedAt} repoId={id} />}
       </div>
     </main>
   );
@@ -388,6 +389,35 @@ function TextCard({ icon, title, body }: { icon: typeof Code2; title: string; bo
   );
 }
 
+/** Real, expandable file tree from the GitHub API (no LLM), with the report's
+ *  plain-language summary kept as a short caption above it. */
+function FolderTreeCard({ repoId, summary }: { repoId: string; summary: string }) {
+  const [tree, setTree] = useState<{ paths: string[]; truncated: boolean } | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    getRepoTree(repoId)
+      .then(setTree)
+      .catch(() => setFailed(true));
+  }, [repoId]);
+
+  return (
+    <Panel className="p-5">
+      <SectionHead icon={FolderTree} title="Folder organization" />
+      {summary && <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{summary}</p>}
+      {failed ? (
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load the file tree.</p>
+      ) : !tree ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading file tree…
+        </div>
+      ) : (
+        <FileTree paths={tree.paths} truncated={tree.truncated} />
+      )}
+    </Panel>
+  );
+}
+
 function ListCard({
   icon,
   title,
@@ -420,10 +450,12 @@ function ReportView({
   report,
   model,
   updatedAt,
+  repoId,
 }: {
   report: AnalysisReport;
   model: string | null;
   updatedAt: string;
+  repoId: string;
 }) {
   return (
     <div className="space-y-4">
@@ -449,7 +481,7 @@ function ReportView({
 
       <ChipCard icon={Package} title="Notable libraries" items={report.thirdPartyLibraries} />
 
-      <TextCard icon={FolderTree} title="Folder organization" body={report.folderStructure} />
+      <FolderTreeCard repoId={repoId} summary={report.folderStructure} />
       <TextCard icon={Network} title="API structure" body={report.apiStructure} />
       <TextCard icon={FlaskConical} title="Testing approach" body={report.testing} />
 
