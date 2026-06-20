@@ -1,5 +1,9 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { writeFile } from "node:fs/promises";
+import { extname, join } from "node:path";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { User } from "@prisma/client";
+import { UPLOADS_DIR } from "./uploads";
 import type {
   ChatMessage,
   Conversation,
@@ -57,10 +61,10 @@ export class MessagingService {
         "New message request",
         `${company ?? recruiter.name ?? "A recruiter"} wants to connect with you.`,
       );
-      void this.mail.send(
+      void this.mail.sendConnectionRequest(
         student.email,
-        "A recruiter wants to connect on EngineerDNA",
-        `<p>${company ?? recruiter.name ?? "A recruiter"} sent you a connection request on EngineerDNA. Open your messages to accept and chat.</p>`,
+        company ?? recruiter.name ?? "A recruiter",
+        message,
       );
     }
 
@@ -149,6 +153,35 @@ export class MessagingService {
 
     const recipientId = convo.recruiterId === user.id ? convo.studentId : convo.recruiterId;
     await this.notifications.create(recipientId, "New message", `${user.name ?? "Someone"} sent you a message.`);
+
+    return toMessage(user.id, message);
+  }
+
+  /** Send a file attachment — saved to disk, served statically at /uploads. */
+  async sendAttachment(user: User, id: string, file?: Express.Multer.File): Promise<ChatMessage> {
+    const convo = await this.requireParticipant(user, id);
+    if (convo.status !== "ACCEPTED") {
+      throw new ForbiddenException("You can share files only after the invitation is accepted.");
+    }
+    if (!file) throw new BadRequestException("No file uploaded");
+
+    const ext = extname(file.originalname).slice(0, 12);
+    const name = `${randomUUID()}${ext}`;
+    await writeFile(join(UPLOADS_DIR, name), file.buffer);
+
+    const message = await this.prisma.message.create({
+      data: {
+        conversationId: id,
+        senderId: user.id,
+        body: file.originalname,
+        attachmentUrl: `/uploads/${name}`,
+        attachmentLabel: file.originalname,
+      },
+    });
+    await this.touch(id);
+
+    const recipientId = convo.recruiterId === user.id ? convo.studentId : convo.recruiterId;
+    await this.notifications.create(recipientId, "New message", `${user.name ?? "Someone"} sent you a file.`);
 
     return toMessage(user.id, message);
   }

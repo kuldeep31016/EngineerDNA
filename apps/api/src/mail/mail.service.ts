@@ -108,6 +108,26 @@ export class MailService {
     );
     await this.send(to, subject, html);
   }
+
+  /** A recruiter sent a connection request — link straight to the chat. */
+  async sendConnectionRequest(to: string, fromName: string, preview: string): Promise<void> {
+    const subject = `${fromName} wants to connect on EngineerDNA`;
+    const html = layout(
+      "New connection request 💬",
+      `
+        <p style="margin:0 0 14px">Hi,</p>
+        <p style="margin:0 0 14px"><strong>${esc(fromName)}</strong> sent you a connection request on EngineerDNA:</p>
+        <blockquote style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #6366F1;background:#f4f4f5;border-radius:8px;color:#3f3f46;font-size:14px">
+          ${esc(preview)}
+        </blockquote>
+        <p style="margin:0 0 18px">Accept the request to start chatting — right here in EngineerDNA.</p>
+        <a href="${appUrl()}/messages" style="display:inline-block;background:#6366F1;color:#fff;text-decoration:none;padding:11px 20px;border-radius:10px;font-weight:600;font-size:14px">
+          View &amp; reply
+        </a>
+      `,
+    );
+    await this.send(to, subject, html);
+  }
 }
 
 function esc(s: string): string {
