@@ -50,12 +50,18 @@ export class RankingService {
     for (const profile of profiles) {
       const candidate = await this.rankCandidate(profile, required, shortlisted.has(profile.userId));
       if (!candidate) continue;
-      // When ranking for specific skills, only surface relevant candidates.
-      if (required.length > 0 && candidate.matchedSkills.length === 0) continue;
+      // Show ALL verified candidates — matched ones simply rank higher (their
+      // skill-match score lifts them to the top), each with a match percentage.
       ranked.push(candidate);
     }
 
-    ranked.sort((a, b) => b.rankScore - a.rankScore || b.overall - a.overall);
+    // Candidates who match the required skills first, then the rest by score.
+    ranked.sort(
+      (a, b) =>
+        b.matchedSkills.length - a.matchedSkills.length ||
+        b.rankScore - a.rankScore ||
+        b.overall - a.overall,
+    );
     return { candidates: ranked, total: ranked.length };
   }
 
