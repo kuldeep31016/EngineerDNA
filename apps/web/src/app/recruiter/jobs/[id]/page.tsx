@@ -18,7 +18,7 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-import type { JobPost, RankedCandidate, RecruiterApplicant } from "@engineerdna/shared";
+import type { JobPost, ProctoringReport, RankedCandidate, RecruiterApplicant } from "@engineerdna/shared";
 import { APPLICATION_STATUSES, type ApplicationStatus } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -217,6 +217,33 @@ function matchColor(v: number): string {
   return "text-rose-400";
 }
 
+/** Integrity badge for a candidate's proctored mock interview. */
+function IntegrityBadge({ p }: { p: ProctoringReport }) {
+  const flags = p.fullscreenExits + p.tabSwitches + p.focusLost;
+  if (p.terminated) {
+    return (
+      <span title="Auto-ended on repeated violations" className="rounded-full bg-rose-500/15 px-2 py-0.5 font-medium text-rose-300">
+        Integrity: ended on violations
+      </span>
+    );
+  }
+  if (flags === 0) {
+    return (
+      <span title="No violations detected" className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-300">
+        Integrity: clean
+      </span>
+    );
+  }
+  return (
+    <span
+      title={`${p.fullscreenExits} fullscreen exits · ${p.tabSwitches} tab switches · ${p.focusLost} window leaves`}
+      className="rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-300"
+    >
+      Integrity: {flags} flag{flags === 1 ? "" : "s"}
+    </span>
+  );
+}
+
 function ApplicantCard({
   applicant: a,
   onStatusChange,
@@ -305,6 +332,17 @@ function ApplicantCard({
           </span>
         ))}
       </div>
+
+      {/* Mock interview signal + integrity */}
+      {a.interviewScore !== null && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs">
+          <span className="flex items-center gap-1.5 font-medium">
+            <MessagesSquare className="h-3.5 w-3.5 text-primary" />
+            Mock interview <span className={`font-bold ${scoreColor(a.interviewScore)}`}>{a.interviewScore}/100</span>
+          </span>
+          {a.interviewIntegrity && <IntegrityBadge p={a.interviewIntegrity} />}
+        </div>
+      )}
 
       {/* Cover letter */}
       {a.coverLetter && (
