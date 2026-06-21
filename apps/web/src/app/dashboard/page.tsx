@@ -9,6 +9,7 @@ import type {
   Profile,
   Repository,
   Score,
+  StudentApplicationStats,
   VerificationResult,
   VerifiedSkill,
 } from "@engineerdna/shared";
@@ -18,6 +19,7 @@ import { getProfile } from "@/services/profile";
 import { getDna } from "@/services/dna";
 import { getGithubStatus, listRepositories } from "@/services/github";
 import { getVerification } from "@/services/verification";
+import { getMyApplicationStats } from "@/services/applications";
 
 const C = {
   panel: "#141417",
@@ -37,6 +39,7 @@ interface DashData {
   status: GithubStatus | null;
   verification: VerificationResult | null;
   repos: Repository[];
+  appStats: StudentApplicationStats | null;
 }
 
 function DashboardContent() {
@@ -49,14 +52,15 @@ function DashboardContent() {
       getGithubStatus().catch(() => null),
       getVerification().catch(() => null),
       listRepositories().catch(() => [] as Repository[]),
-    ]).then(([profile, dna, status, verification, repos]) => {
-      setData({ profile, dna, status, verification, repos });
+      getMyApplicationStats().catch(() => null),
+    ]).then(([profile, dna, status, verification, repos, appStats]) => {
+      setData({ profile, dna, status, verification, repos, appStats });
     });
   }, []);
 
   if (!data) return <LoadingScreen label="Building your Developer DNA…" />;
 
-  const { profile, dna, status, verification, repos } = data;
+  const { profile, dna, status, verification, repos, appStats } = data;
   const user = profile?.user;
   const overall = dna?.overall ?? 0;
   const verifiedCount = verification?.verifiedCount ?? 0;
@@ -144,6 +148,14 @@ function DashboardContent() {
           <Kpi label="VERIFIED SKILLS" value={`${verifiedCount}`} sub="backed by evidence" />
         </div>
 
+        {/* Hiring readiness + application funnel */}
+        <div className="mb-[18px] grid gap-3.5 lg:grid-cols-[1.15fr_1fr]">
+          <ReadinessPanel
+            readiness={computeReadiness({ profile, overall, verifiedCount, repoCount, status, appStats })}
+          />
+          <FunnelPanel stats={appStats} />
+        </div>
+
         {/* Radar + skills */}
         <div className="mb-[18px] grid gap-3.5 lg:grid-cols-[1fr_1.15fr]">
           <Panel>
@@ -222,6 +234,163 @@ function DashboardContent() {
 
 function Panel({ children }: { children: React.ReactNode }) {
   return <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: C.panel, padding: 20 }}>{children}</div>;
+}
+
+interface ReadinessItem {
+  label: string;
+  done: boolean;
+  weight: number;
+  href: string;
+  cta: string;
+}
+interface Readiness {
+  score: number;
+  items: ReadinessItem[];
+}
+
+/** Deterministic hiring-readiness score — a weighted checklist of the steps that
+ *  make a candidate credible to recruiters. No LLM, no guessing. */
+function computeReadiness(d: {
+  profile: Profile | null;
+  overall: number;
+  verifiedCount: number;
+  repoCount: number;
+  status: GithubStatus | null;
+  appStats: StudentApplicationStats | null;
+}): Readiness {
+  const { profile, overall, verifiedCount, repoCount, status, appStats } = d;
+  const items: ReadinessItem[] = [
+    { label: "Connect your GitHub", done: !!status?.connected, weight: 15, href: "/repositories", cta: "Connect" },
+    { label: "Sync at least 3 repositories", done: repoCount >= 3, weight: 10, href: "/repositories", cta: "Sync repos" },
+    { label: "Add a headline", done: !!profile?.headline, weight: 8, href: "/profile", cta: "Add headline" },
+    { label: "Set your location", done: !!profile?.location, weight: 5, href: "/profile", cta: "Add location" },
+    { label: "Verify your first skill", done: verifiedCount >= 1, weight: 15, href: "/evidence", cta: "Verify skills" },
+    { label: "Reach an engineering score of 40+", done: overall >= 40, weight: 12, href: "/dna", cta: "See your DNA" },
+    {
+      label: "Go public — claim a username & turn on your profile",
+      done: !!profile?.username && !!profile?.isPublic,
+      weight: 15,
+      href: "/profile",
+      cta: "Go public",
+    },
+    { label: "Apply to your first job", done: (appStats?.total ?? 0) >= 1, weight: 10, href: "/jobs", cta: "Browse jobs" },
+    {
+      label: "Get on a recruiter's radar (shortlist or interview)",
+      done: (appStats?.shortlisted ?? 0) + (appStats?.interviews ?? 0) + (appStats?.offers ?? 0) >= 1,
+      weight: 10,
+      href: "/applications",
+      cta: "Track applications",
+    },
+  ];
+  const score = items.filter((i) => i.done).reduce((sum, i) => sum + i.weight, 0);
+  return { score, items };
+}
+
+function readinessTone(score: number): { label: string; color: string } {
+  if (score >= 85) return { label: "Recruiter-ready", color: C.grn };
+  if (score >= 55) return { label: "Getting there", color: "#A5B4FC" };
+  if (score >= 25) return { label: "Early days", color: "#FBBF77" };
+  return { label: "Just starting", color: C.tx3 };
+}
+
+function ReadinessPanel({ readiness }: { readiness: Readiness }) {
+  const tone = readinessTone(readiness.score);
+  const next = readiness.items.filter((i) => !i.done).sort((a, b) => b.weight - a.weight).slice(0, 3);
+
+  return (
+    <Panel>
+      <div className="mb-3 flex items-center justify-between">
+        <span style={{ fontSize: 13.5, fontWeight: 600 }}>Hiring readiness</span>
+        <span style={{ fontFamily: mono, fontSize: 11, color: tone.color, background: "rgba(255,255,255,.04)", padding: "3px 9px", borderRadius: 999 }}>
+          {tone.label}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="flex items-center gap-3">
+        <span style={{ fontFamily: mono, fontSize: 26, fontWeight: 700, color: tone.color }}>{readiness.score}</span>
+        <span style={{ fontSize: 11, color: C.tx3 }}>/100</span>
+        <div className="flex-1" style={{ height: 7, borderRadius: 4, background: "rgba(255,255,255,.06)" }}>
+          <div style={{ width: `${readiness.score}%`, height: "100%", borderRadius: 4, background: "linear-gradient(90deg,#6366F1,#8B5CF6)" }} />
+        </div>
+      </div>
+
+      {/* Next best actions */}
+      {next.length > 0 ? (
+        <div className="mt-4">
+          <span style={{ fontSize: 11, color: C.tx3 }}>NEXT BEST ACTIONS</span>
+          <div className="mt-2 flex flex-col gap-2">
+            {next.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="flex items-center justify-between gap-3 transition-colors hover:border-[rgba(99,102,241,.3)]"
+                style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: "9px 12px" }}
+              >
+                <span className="flex items-center gap-2.5" style={{ fontSize: 13, color: C.tx }}>
+                  <span style={{ width: 16, height: 16, borderRadius: 999, border: `1.5px solid ${C.tx3}`, display: "inline-block", flexShrink: 0 }} />
+                  {item.label}
+                </span>
+                <span className="shrink-0" style={{ fontSize: 11.5, fontWeight: 600, color: C.ind }}>{item.cta} →</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <p className="mt-4" style={{ fontSize: 13, color: C.grn }}>
+          You&apos;ve completed every readiness step — recruiters see a fully verified profile.
+        </p>
+      )}
+    </Panel>
+  );
+}
+
+function FunnelPanel({ stats }: { stats: StudentApplicationStats | null }) {
+  const total = stats?.total ?? 0;
+  const stages = [
+    { label: "Applied", value: total, color: "#A5B4FC" },
+    { label: "Shortlisted", value: stats?.shortlisted ?? 0, color: "#C4B5FD" },
+    { label: "Interviews", value: stats?.interviews ?? 0, color: "#7DD3FC" },
+    { label: "Offers", value: stats?.offers ?? 0, color: "#6EE7B7" },
+  ];
+  const max = Math.max(total, 1);
+
+  return (
+    <Panel>
+      <div className="mb-3 flex items-center justify-between">
+        <span style={{ fontSize: 13.5, fontWeight: 600 }}>Application funnel</span>
+        <Link href="/applications" style={{ fontFamily: mono, fontSize: 10.5, color: C.ind }}>track →</Link>
+      </div>
+
+      {total === 0 ? (
+        <div className="flex flex-col gap-2 py-2">
+          <p style={{ fontSize: 13, color: C.tx2 }}>
+            No applications yet. Your verified profile does the talking — start applying.
+          </p>
+          <Link href="/jobs" className="self-start" style={{ fontSize: 12.5, fontWeight: 600, color: C.ind }}>
+            Browse the job board →
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {stages.map((s) => (
+            <div key={s.label}>
+              <div className="mb-1 flex items-center justify-between" style={{ fontSize: 12.5 }}>
+                <span style={{ color: C.tx2 }}>{s.label}</span>
+                <span style={{ fontFamily: mono, color: "#fff" }}>{s.value}</span>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,.06)" }}>
+                <div style={{ width: `${Math.max(s.value > 0 ? 6 : 0, (s.value / max) * 100)}%`, height: "100%", borderRadius: 4, background: s.color }} />
+              </div>
+            </div>
+          ))}
+          {(stats?.rejected ?? 0) > 0 && (
+            <p style={{ fontSize: 11.5, color: C.tx3, marginTop: 2 }}>{stats?.rejected} closed / not selected</p>
+          )}
+        </div>
+      )}
+    </Panel>
+  );
 }
 
 function Kpi({ label, value, sub, small }: { label: string; value: string; sub: string; small?: boolean }) {
