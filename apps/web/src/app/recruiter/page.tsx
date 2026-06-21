@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  ArrowUpDown,
   BadgeCheck,
   Bookmark,
   BookmarkCheck,
@@ -15,6 +16,7 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   Trophy,
   Users,
   X,
@@ -38,6 +40,54 @@ function scoreColor(v: number): string {
   if (v >= 75) return "text-emerald-400";
   if (v >= 50) return "text-amber-400";
   return "text-rose-400";
+}
+
+type SortKey = "match" | "dna" | "verified" | "experience" | "repos";
+const SORTS: { value: SortKey; label: string }[] = [
+  { value: "match", label: "Best match" },
+  { value: "dna", label: "DNA score" },
+  { value: "verified", label: "Most verified skills" },
+  { value: "experience", label: "Most experience" },
+  { value: "repos", label: "Most public repos" },
+];
+
+interface Filters {
+  minDna: number;
+  minVerified: number;
+  minExp: number;
+  location: string;
+  matchAll: boolean;
+}
+const NO_FILTERS: Filters = { minDna: 0, minVerified: 0, minExp: 0, location: "", matchAll: false };
+
+/** Deterministic client-side filter + sort over the search results. */
+function refine(
+  list: CandidateSummary[],
+  filters: Filters,
+  sort: SortKey,
+  searchedSkillCount: number,
+): CandidateSummary[] {
+  const loc = filters.location.trim().toLowerCase();
+  const out = list.filter(
+    (c) =>
+      c.overall >= filters.minDna &&
+      c.verifiedSkillCount >= filters.minVerified &&
+      (filters.minExp === 0 || (c.experienceYears ?? 0) >= filters.minExp) &&
+      (!loc || (c.location ?? "").toLowerCase().includes(loc)) &&
+      (!filters.matchAll || searchedSkillCount === 0 || c.matchedSkills.length >= searchedSkillCount),
+  );
+  const by: Record<SortKey, (a: CandidateSummary, b: CandidateSummary) => number> = {
+    match: (a, b) => b.matchedSkills.length - a.matchedSkills.length || b.overall - a.overall,
+    dna: (a, b) => b.overall - a.overall,
+    verified: (a, b) => b.verifiedSkillCount - a.verifiedSkillCount,
+    experience: (a, b) => (b.experienceYears ?? -1) - (a.experienceYears ?? -1),
+    repos: (a, b) => b.publicRepoCount - a.publicRepoCount,
+  };
+  return [...out].sort(by[sort]);
+}
+
+function activeFilterCount(f: Filters): number {
+  return [f.minDna > 0, f.minVerified > 0, f.minExp > 0, f.location.trim() !== "", f.matchAll].filter(Boolean).length;
 }
 
 /** Headline counts across the recruiter's hiring activity. */
@@ -95,6 +145,9 @@ function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [inviting, setInviting] = useState<CandidateSummary | null>(null);
+  const [sortBy, setSortBy] = useState<SortKey>("match");
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
+  const [showFilters, setShowFilters] = useState(false);
   const router = useRouter();
 
   const addSkill = (s: string) => {
@@ -156,7 +209,12 @@ function Dashboard() {
   }
 
   const list = tab === "search" ? results : shortlist;
-  const paged = usePagination(list ?? [], 10);
+  const refined = useMemo(
+    () => (list ? refine(list, filters, sortBy, skills.length) : []),
+    [list, filters, sortBy, skills.length],
+  );
+  const paged = usePagination(refined, 10);
+  const activeCount = activeFilterCount(filters);
 
   const q = input.trim().toLowerCase();
   const suggestions = q
@@ -263,25 +321,53 @@ function Dashboard() {
         />
       ) : (
         <div className="space-y-3">
-          {paged.pageItems.map((c) => (
-            <CandidateCard
-              key={c.id}
-              c={c}
-              saved={saved.has(c.id)}
-              onToggleSave={() => toggleSave(c.id)}
-              onView={() => router.push(`/recruiter/candidates/${c.id}`)}
-              onMessage={() => setInviting(c)}
-            />
-          ))}
-          <Pagination
-            page={paged.page}
-            totalPages={paged.totalPages}
-            onPageChange={paged.setPage}
-            from={paged.from}
-            to={paged.to}
-            total={paged.total}
-            label="candidates"
+          <SearchToolbar
+            total={list.length}
+            shown={refined.length}
+            sortBy={sortBy}
+            onSort={setSortBy}
+            showFilters={showFilters}
+            onToggleFilters={() => setShowFilters((v) => !v)}
+            activeCount={activeCount}
           />
+          {showFilters && (
+            <FilterPanel filters={filters} onChange={setFilters} onClear={() => setFilters(NO_FILTERS)} />
+          )}
+
+          {refined.length === 0 ? (
+            <div className="rounded-xl border border-border bg-card px-6 py-12 text-center">
+              <SlidersHorizontal className="mx-auto h-7 w-7 text-muted-foreground" />
+              <p className="mt-2 text-sm text-muted-foreground">No candidates match these filters.</p>
+              <button
+                onClick={() => setFilters(NO_FILTERS)}
+                className="mt-3 text-sm font-medium text-primary hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <>
+              {paged.pageItems.map((c) => (
+                <CandidateCard
+                  key={c.id}
+                  c={c}
+                  saved={saved.has(c.id)}
+                  onToggleSave={() => toggleSave(c.id)}
+                  onView={() => router.push(`/recruiter/candidates/${c.id}`)}
+                  onMessage={() => setInviting(c)}
+                />
+              ))}
+              <Pagination
+                page={paged.page}
+                totalPages={paged.totalPages}
+                onPageChange={paged.setPage}
+                from={paged.from}
+                to={paged.to}
+                total={paged.total}
+                label="candidates"
+              />
+            </>
+          )}
         </div>
       )}
 
@@ -357,6 +443,142 @@ function InviteModal({ candidate, onClose }: { candidate: CandidateSummary; onCl
             </button>
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SearchToolbar({
+  total,
+  shown,
+  sortBy,
+  onSort,
+  showFilters,
+  onToggleFilters,
+  activeCount,
+}: {
+  total: number;
+  shown: number;
+  sortBy: SortKey;
+  onSort: (s: SortKey) => void;
+  showFilters: boolean;
+  onToggleFilters: () => void;
+  activeCount: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="text-xs text-muted-foreground">
+        {shown === total ? `${total} candidate${total === 1 ? "" : "s"}` : `${shown} of ${total} shown`}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onToggleFilters}
+          className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            showFilters || activeCount > 0
+              ? "border-primary/40 bg-primary/10 text-foreground"
+              : "border-border text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" /> Filters
+          {activeCount > 0 && (
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+              {activeCount}
+            </span>
+          )}
+        </button>
+        <div className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs">
+          <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+          <select
+            value={sortBy}
+            onChange={(e) => onSort(e.target.value as SortKey)}
+            className="cursor-pointer bg-transparent font-medium text-foreground outline-none"
+          >
+            {SORTS.map((s) => (
+              <option key={s.value} value={s.value} className="bg-card text-foreground">
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilterPanel({
+  filters,
+  onChange,
+  onClear,
+}: {
+  filters: Filters;
+  onChange: (f: Filters) => void;
+  onClear: () => void;
+}) {
+  const set = (patch: Partial<Filters>) => onChange({ ...filters, ...patch });
+  return (
+    <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <ChipRow label="Min DNA score" value={filters.minDna} options={[0, 50, 70, 85]} onPick={(v) => set({ minDna: v })} fmt={(v) => (v === 0 ? "Any" : `${v}+`)} />
+      <ChipRow label="Min verified skills" value={filters.minVerified} options={[0, 3, 5, 10]} onPick={(v) => set({ minVerified: v })} fmt={(v) => (v === 0 ? "Any" : `${v}+`)} />
+      <ChipRow label="Min experience" value={filters.minExp} options={[0, 1, 3, 5]} onPick={(v) => set({ minExp: v })} fmt={(v) => (v === 0 ? "Any" : `${v}+ yr`)} />
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs">
+          <span className="font-medium text-muted-foreground">Location</span>
+          <input
+            value={filters.location}
+            onChange={(e) => set({ location: e.target.value })}
+            placeholder="e.g. Bengaluru, Remote…"
+            className="w-44 rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary/60"
+          />
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={filters.matchAll}
+            onChange={(e) => set({ matchAll: e.target.checked })}
+            className="h-4 w-4 cursor-pointer accent-[#6366f1]"
+          />
+          Matches all searched skills
+        </label>
+        {activeFilterCount(filters) > 0 && (
+          <button onClick={onClear} className="ml-auto text-xs font-medium text-primary hover:underline">
+            Clear all
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChipRow({
+  label,
+  value,
+  options,
+  onPick,
+  fmt,
+}: {
+  label: string;
+  value: number;
+  options: number[];
+  onPick: (v: number) => void;
+  fmt: (v: number) => string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="w-32 shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o}
+            onClick={() => onPick(o)}
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+              value === o
+                ? "border-primary/40 bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {fmt(o)}
+          </button>
+        ))}
       </div>
     </div>
   );
