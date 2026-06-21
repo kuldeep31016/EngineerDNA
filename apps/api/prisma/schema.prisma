@@ -158,6 +158,8 @@ model User {
   portfolio     Portfolio?
   shortlists    Shortlist[]     @relation("RecruiterShortlists")
   shortlistedBy Shortlist[]     @relation("CandidateShortlistedBy")
+  recruiterNotes RecruiterNote[] @relation("RecruiterNotes")
+  notedBy        RecruiterNote[] @relation("CandidateNotedBy")
   recruiterProfile RecruiterProfile?
   jobs          JobPost[]       @relation("RecruiterJobs")
   subscription  RecruiterSubscription?
@@ -388,6 +390,23 @@ model Shortlist {
   candidate   User     @relation("CandidateShortlistedBy", fields: [candidateId], references: [id], onDelete: Cascade)
   note        String?
   createdAt   DateTime @default(now())
+
+  @@unique([recruiterId, candidateId])
+  @@index([recruiterId])
+}
+
+/// A recruiter's PRIVATE note + rating on a candidate. One per recruiter per
+/// candidate (editable), independent of shortlist state. Never shown to students.
+model RecruiterNote {
+  id          String   @id @default(uuid()) @db.Uuid
+  recruiterId String   @db.Uuid
+  recruiter   User     @relation("RecruiterNotes", fields: [recruiterId], references: [id], onDelete: Cascade)
+  candidateId String   @db.Uuid
+  candidate   User     @relation("CandidateNotedBy", fields: [candidateId], references: [id], onDelete: Cascade)
+  body        String?
+  rating      Int?     // 1-5, optional
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([recruiterId, candidateId])
   @@index([recruiterId])
