@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -115,7 +116,13 @@ function JobDetailContent() {
                 {(job.company?.name ?? job.recruiterName ?? "?").charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <p className="text-sm text-muted-foreground">{job.company?.name ?? "Company"}</p>
+                {job.company ? (
+                  <Link href={`/c/${job.company.id}`} className="text-sm text-muted-foreground transition-colors hover:text-primary">
+                    {job.company.name}
+                  </Link>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Company</p>
+                )}
                 <h1 className="text-xl font-bold">{job.title}</h1>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
                   {job.location && (
