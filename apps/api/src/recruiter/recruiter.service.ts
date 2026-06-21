@@ -6,6 +6,7 @@ import type {
   CandidateSearchResult,
   CandidateSummary,
   DeveloperEvidenceItem,
+  RecruiterAnalytics,
   RecruiterNote,
   SearchCandidatesInput,
   UpsertRecruiterNoteInput,
@@ -143,6 +144,100 @@ export class RecruiterService {
     await this.prisma.shortlist.deleteMany({
       where: { recruiterId: recruiter.id, candidateId },
     });
+  }
+
+  /** Aggregated hiring funnel + conversion analytics across all of the
+   *  recruiter's jobs. Deterministic — pure aggregation over applications. */
+  async analytics(recruiter: User): Promise<RecruiterAnalytics> {
+    const [jobs, apps] = await Promise.all([
+      this.prisma.jobPost.findMany({
+        where: { recruiterId: recruiter.id },
+        select: { id: true, title: true, status: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.jobApplication.findMany({
+        where: { job: { recruiterId: recruiter.id } },
+        select: { jobId: true, status: true, createdAt: true, updatedAt: true },
+      }),
+    ]);
+
+    // Ordered pipeline rank for a status (REJECTED = 0: progression unknown).
+    const rankOf = (s: string): number =>
+      (
+        ({
+          APPLIED: 1,
+          VIEWED: 2,
+          SCREENING: 3,
+          SHORTLISTED: 4,
+          INTERVIEW: 5,
+          INTERVIEW_SCHEDULED: 5,
+          OFFER_SENT: 6,
+          OFFER_ACCEPTED: 7,
+          SELECTED: 7,
+          HIRED: 7,
+        }) as Record<string, number>
+      )[s] ?? 0;
+
+    const stages = {
+      applied: apps.filter((a) => a.status === "APPLIED").length,
+      viewed: apps.filter((a) => a.status === "VIEWED").length,
+      screening: apps.filter((a) => a.status === "SCREENING").length,
+      shortlisted: apps.filter((a) => a.status === "SHORTLISTED").length,
+      interview: apps.filter((a) => a.status === "INTERVIEW" || a.status === "INTERVIEW_SCHEDULED").length,
+      offer: apps.filter((a) => a.status === "OFFER_SENT").length,
+      hired: apps.filter((a) => rankOf(a.status) === 7).length,
+      rejected: apps.filter((a) => a.status === "REJECTED").length,
+    };
+
+    const total = apps.length;
+    const reached = (min: number) => apps.filter((a) => rankOf(a.status) >= min).length;
+    const pct = (n: number) => (total === 0 ? 0 : Math.round((n / total) * 100));
+    const conversion = {
+      shortlistRate: pct(reached(4)),
+      interviewRate: pct(reached(5)),
+      offerRate: pct(reached(6)),
+      hireRate: pct(reached(7)),
+    };
+
+    // Average days in pipeline for hired applicants (createdAt → updatedAt proxy).
+    const hiredApps = apps.filter((a) => rankOf(a.status) === 7);
+    const avgDaysToHire =
+      hiredApps.length === 0
+        ? null
+        : Math.round(
+            hiredApps.reduce(
+              (sum, a) => sum + (a.updatedAt.getTime() - a.createdAt.getTime()) / 86_400_000,
+              0,
+            ) / hiredApps.length,
+          );
+
+    const perJob = jobs.map((j) => {
+      const ja = apps.filter((a) => a.jobId === j.id);
+      const cnt = (min: number) => ja.filter((a) => rankOf(a.status) >= min).length;
+      return {
+        id: j.id,
+        title: j.title,
+        status: j.status,
+        applicants: ja.length,
+        shortlisted: cnt(4),
+        interviewing: cnt(5),
+        offers: cnt(6),
+        hired: cnt(7),
+      };
+    });
+
+    return {
+      totals: {
+        jobs: jobs.length,
+        openJobs: jobs.filter((j) => j.status === "OPEN").length,
+        applicants: total,
+        hires: stages.hired,
+      },
+      stages,
+      conversion,
+      avgDaysToHire,
+      perJob,
+    };
   }
 
   /** The recruiter's private note + rating on a candidate (null if none yet). */

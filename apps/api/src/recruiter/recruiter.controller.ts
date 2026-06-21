@@ -5,6 +5,7 @@ import {
   upsertRecruiterNoteRequestSchema,
   type CandidateProfile,
   type CandidateSearchResult,
+  type RecruiterAnalytics,
   type RecruiterNote,
   type SearchCandidatesInput,
   type UpsertRecruiterNoteInput,
@@ -34,6 +35,12 @@ export class RecruiterController {
   @Get("shortlist")
   shortlist(@CurrentUser() user: User): Promise<CandidateSearchResult> {
     return this.recruiter.listShortlist(user);
+  }
+
+  /** GET /api/recruiter/analytics — aggregated hiring funnel across all jobs. */
+  @Get("analytics")
+  analytics(@CurrentUser() user: User): Promise<RecruiterAnalytics> {
+    return this.recruiter.analytics(user);
   }
 
   /** GET /api/recruiter/candidates/:id — a candidate's verified profile. */
