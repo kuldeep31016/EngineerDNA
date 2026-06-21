@@ -4,10 +4,20 @@ import { AuthProvider } from "@/components/auth/AuthProvider";
 import { AppChrome } from "@/components/app/AppChrome";
 import "./globals.css";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(APP_URL),
   title: `${APP_NAME} — The Trust Layer for Technical Hiring`,
   description:
     "EngineerDNA analyzes real engineering evidence from GitHub to build a verified developer profile. Evidence over claims.",
+  openGraph: {
+    siteName: APP_NAME,
+    type: "website",
+    title: `${APP_NAME} — The Trust Layer for Technical Hiring`,
+    description: "Hire engineers on verified engineering evidence, not resume claims.",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({
