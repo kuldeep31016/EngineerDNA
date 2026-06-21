@@ -89,10 +89,27 @@ enum JobStatus {
 enum ApplicationStatus {
   APPLIED
   VIEWED
+  SCREENING
   SHORTLISTED
   INTERVIEW
+  INTERVIEW_SCHEDULED
+  OFFER_SENT
+  OFFER_ACCEPTED
   REJECTED
   SELECTED
+  HIRED
+}
+
+enum InterviewScheduleStatus {
+  PROPOSED
+  ACCEPTED
+  DECLINED
+}
+
+enum OfferStatus {
+  SENT
+  ACCEPTED
+  REJECTED
 }
 
 /// A recruiter→student conversation. Starts PENDING (an invitation); the student
@@ -533,9 +550,56 @@ model JobApplication {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
+  events    ApplicationEvent[]
+  interview InterviewSchedule?
+  offer     Offer?
+
   @@unique([jobId, studentId])
   @@index([studentId])
   @@index([jobId])
+}
+
+/// Append-only timeline of everything that happened to an application — the
+/// permanent audit trail shown in both recruiter and student dashboards.
+model ApplicationEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  applicationId String         @db.Uuid
+  application   JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  type          String // applied | status_changed | interview_scheduled | interview_accepted | offer_sent | ...
+  actorRole     String // recruiter | student | system
+  note          String?
+  createdAt     DateTime       @default(now())
+
+  @@index([applicationId])
+}
+
+/// A proposed interview slot for an application. One active per application
+/// (re-proposing upserts). The student accepts, declines, or asks for another.
+model InterviewSchedule {
+  id            String                  @id @default(uuid()) @db.Uuid
+  applicationId String                  @unique @db.Uuid
+  application   JobApplication          @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  scheduledAt   DateTime
+  meetingLink   String?
+  notes         String?
+  status        InterviewScheduleStatus @default(PROPOSED)
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+}
+
+/// A job offer for an application. One active per application. The student
+/// accepts or rejects; the record is kept permanently for history.
+model Offer {
+  id             String         @id @default(uuid()) @db.Uuid
+  applicationId  String         @unique @db.Uuid
+  application    JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  salary         String
+  joiningDate    DateTime?
+  employmentType String
+  message        String?
+  status         OfferStatus    @default(SENT)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 }
 
 /// In-app notification for a user. Created when application status changes.
