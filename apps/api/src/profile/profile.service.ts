@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import type { Prisma, Profile as ProfileRow, Skill, User } from "@prisma/client";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import type { Profile as ProfileRow, Skill, User } from "@prisma/client";
 import { z } from "zod";
 import {
   achievementItemSchema,
@@ -38,12 +39,20 @@ export class ProfileService {
   async update(user: User, input: UpdateProfileInput): Promise<Profile> {
     await this.ensureProfile(user.id);
     const data: Prisma.ProfileUpdateInput = { ...(input as Prisma.ProfileUpdateInput) };
-    const updated = await this.prisma.profile.update({
-      where: { userId: user.id },
-      data,
-      include: { skills: { orderBy: { createdAt: "asc" } } },
-    });
-    return this.toResponse(user, updated, updated.skills);
+    try {
+      const updated = await this.prisma.profile.update({
+        where: { userId: user.id },
+        data,
+        include: { skills: { orderBy: { createdAt: "asc" } } },
+      });
+      return this.toResponse(user, updated, updated.skills);
+    } catch (err) {
+      // Unique-constraint violation — almost always a taken username.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        throw new ConflictException("That username is already taken.");
+      }
+      throw err;
+    }
   }
 
   /** Add a self-claimed skill (idempotent on name within a profile). */
@@ -85,6 +94,7 @@ export class ProfileService {
   private toResponse(user: User, row: ProfileRow, skills: Skill[]): Profile {
     return {
       user: UsersService.toAuthUser(user),
+      username: row.username,
       headline: row.headline,
       about: row.about,
       location: row.location,

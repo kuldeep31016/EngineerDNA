@@ -80,6 +80,7 @@ export type Skill = z.infer<typeof skillSchema>;
 /** The full passport returned by GET /profile/me. */
 export const profileSchema = z.object({
   user: authUserSchema,
+  username: z.string().nullable(),
   headline: z.string().nullable(),
   about: z.string().nullable(),
   location: z.string().nullable(),
@@ -106,6 +107,12 @@ export type Profile = z.infer<typeof profileSchema>;
 /** Editable fields accepted by PATCH /profile/me. */
 export const updateProfileSchema = z
   .object({
+    username: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9-]{3,30}$/, "3–30 chars: lowercase letters, numbers, hyphens")
+      .nullish(),
     headline: z.string().max(120).nullish(),
     about: z.string().max(5000).nullish(),
     location: z.string().max(120).nullish(),

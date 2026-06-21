@@ -36,3 +36,4 @@ export * from "./contracts/subscription";
 export * from "./contracts/application";
 export * from "./contracts/notification";
 export * from "./contracts/messaging";
+export * from "./contracts/public-profile";
