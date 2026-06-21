@@ -23,7 +23,7 @@ function scoreColor(v: number): string {
   return "text-rose-400";
 }
 
-export default function PublicProfilePage() {
+export default function ProfileClient() {
   const params = useParams<{ username: string }>();
   const [p, setP] = useState<PublicProfile | null>(null);
   const [missing, setMissing] = useState(false);
