@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   BadgeCheck,
   ExternalLink,
+  FileDown,
   Github,
   Globe,
   Loader2,
@@ -58,12 +59,20 @@ export default function PublicProfilePage() {
       <header className="border-b border-border">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <Logo href="/" />
-          <Link
-            href="/"
-            className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            Get your verified profile
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/u/${p.username}/print`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <FileDown className="h-4 w-4" /> Download PDF
+            </Link>
+            <Link
+              href="/"
+              className="rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              Get your verified profile
+            </Link>
+          </div>
         </div>
       </header>
 
