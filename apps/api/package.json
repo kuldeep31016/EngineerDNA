@@ -10,7 +10,11 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
+    "seed": "node prisma/seed.mjs",
     "test": "jest --passWithNoTests"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.104.0",
