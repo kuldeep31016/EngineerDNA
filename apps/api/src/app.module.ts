@@ -31,6 +31,7 @@ import { JobsModule } from "./jobs/jobs.module";
 import { ApplicationsModule } from "./applications/applications.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { MessagingModule } from "./messaging/messaging.module";
+import { PublicModule } from "./public/public.module";
 
 /**
  * Root module. Feature modules (profile, github, evidence, ...) will be
@@ -74,6 +75,7 @@ import { MessagingModule } from "./messaging/messaging.module";
     ApplicationsModule,
     NotificationsModule,
     MessagingModule,
+    PublicModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
