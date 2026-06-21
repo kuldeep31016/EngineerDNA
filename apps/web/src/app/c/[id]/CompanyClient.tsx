@@ -15,7 +15,7 @@ function modeLabel(v: string): string {
   return JOB_WORK_MODES.find((t) => t.value === v)?.label ?? v;
 }
 
-export default function PublicCompanyPage() {
+export default function CompanyClient() {
   const params = useParams<{ id: string }>();
   const [c, setC] = useState<PublicCompany | null>(null);
   const [missing, setMissing] = useState(false);
