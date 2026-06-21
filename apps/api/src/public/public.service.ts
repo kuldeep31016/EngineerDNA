@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import type { PublicProfile } from "@engineerdna/shared";
+import type { PublicCompany, PublicProfile } from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EvidenceService } from "../evidence/evidence.service";
 import { computeDnaScores } from "../dna/dna-scorer";
@@ -62,6 +62,62 @@ export class PublicService {
         htmlUrl: r.htmlUrl,
       })),
       generatedAt: new Date().toISOString(),
+    };
+  }
+
+  /** The public company page — brand + currently OPEN roles. */
+  async getCompany(id: string): Promise<PublicCompany> {
+    const company = await this.prisma.company.findUnique({
+      where: { id },
+      include: {
+        jobs: {
+          where: { status: "OPEN" },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            workMode: true,
+            location: true,
+            skills: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    if (!company) throw new NotFoundException("Company not found");
+
+    // skills is a Prisma Json column — normalize to a string[] before use.
+    const skillsOf = (raw: unknown): string[] =>
+      Array.isArray(raw) ? raw.filter((s): s is string => typeof s === "string") : [];
+
+    // The most common required skills across all open roles, most frequent first.
+    const counts = new Map<string, number>();
+    for (const j of company.jobs) {
+      for (const s of skillsOf(j.skills)) counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    const topSkills = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([s]) => s);
+
+    return {
+      id: company.id,
+      name: company.name,
+      logo: company.logo ?? null,
+      website: company.website ?? null,
+      description: company.description ?? null,
+      openRoleCount: company.jobs.length,
+      topSkills,
+      jobs: company.jobs.map((j) => ({
+        id: j.id,
+        title: j.title,
+        type: j.type,
+        workMode: j.workMode,
+        location: j.location ?? null,
+        skills: skillsOf(j.skills),
+        createdAt: j.createdAt.toISOString(),
+      })),
     };
   }
 

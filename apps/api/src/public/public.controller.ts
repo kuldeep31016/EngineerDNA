@@ -1,5 +1,5 @@
 import { Controller, Get, Header, Param } from "@nestjs/common";
-import type { PublicProfile } from "@engineerdna/shared";
+import type { PublicCompany, PublicProfile } from "@engineerdna/shared";
 import { PublicService } from "./public.service";
 
 /** Public, UNAUTHENTICATED endpoints for shareable verified profiles + badges. */
@@ -11,6 +11,12 @@ export class PublicController {
   @Get("profile/:username")
   getProfile(@Param("username") username: string): Promise<PublicProfile> {
     return this.publicService.getProfile(username);
+  }
+
+  /** GET /api/public/company/:id — the public company page (brand + open roles). */
+  @Get("company/:id")
+  getCompany(@Param("id") id: string): Promise<PublicCompany> {
+    return this.publicService.getCompany(id);
   }
 
   /** GET /api/public/profile/:username/badge.svg — embeddable verification badge. */
