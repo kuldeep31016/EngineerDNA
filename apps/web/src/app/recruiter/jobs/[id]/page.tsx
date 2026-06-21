@@ -13,6 +13,7 @@ import {
   FileSearch,
   FolderGit2,
   Github,
+  GitCompare,
   Loader2,
   MapPin,
   MessagesSquare,
@@ -26,6 +27,7 @@ import { APPLICATION_STATUSES, type ApplicationStatus } from "@engineerdna/share
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { LifecyclePanel } from "@/components/applications/LifecyclePanel";
+import { CandidateCompare } from "@/components/recruiter/CandidateCompare";
 import { addShortlist, removeShortlist } from "@/services/recruiter";
 import { getJob, getJobRanking } from "@/services/jobs";
 import { getJobApplications, updateApplicationStatus } from "@/services/applications";
@@ -59,6 +61,16 @@ function JobDetailContent() {
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [inviting, setInviting] = useState<{ id: string; name: string } | null>(null);
+  const [compare, setCompare] = useState<string[]>([]);
+  const [showCompare, setShowCompare] = useState(false);
+
+  const MAX_COMPARE = 4;
+  function toggleCompare(cid: string) {
+    setCompare((prev) =>
+      prev.includes(cid) ? prev.filter((x) => x !== cid) : prev.length >= MAX_COMPARE ? prev : [...prev, cid],
+    );
+  }
+  const compareList = (candidates ?? []).filter((c) => compare.includes(c.id));
 
   useEffect(() => {
     void getJob(id).then(setJob).catch(() => {});
@@ -197,6 +209,9 @@ function JobDetailContent() {
                 rank={i + 1}
                 saved={saved.has(c.id)}
                 open={open.has(c.id)}
+                selected={compare.includes(c.id)}
+                selectDisabled={compare.length >= MAX_COMPARE && !compare.includes(c.id)}
+                onToggleSelect={() => toggleCompare(c.id)}
                 onToggleSave={() => toggleSave(c.id)}
                 onToggleOpen={() => toggleOpen(c.id)}
                 onMessage={() => setInviting({ id: c.id, name: c.name })}
@@ -247,6 +262,37 @@ function JobDetailContent() {
             )}
           </div>
         ))}
+
+      {/* Floating compare tray — appears once candidates are selected on the ranking tab */}
+      {tab === "ranking" && compare.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-border bg-card/95 px-4 py-2.5 shadow-xl backdrop-blur">
+          <span className="text-sm font-medium">
+            {compare.length} selected
+            <span className="ml-1 text-xs text-muted-foreground">(up to {MAX_COMPARE})</span>
+          </span>
+          <button
+            onClick={() => setShowCompare(true)}
+            disabled={compare.length < 2}
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand px-4 py-1.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            <GitCompare className="h-4 w-4" /> Compare
+          </button>
+          <button onClick={() => setCompare([])} className="text-xs text-muted-foreground hover:text-foreground">
+            Clear
+          </button>
+        </div>
+      )}
+
+      {showCompare && compareList.length >= 2 && (
+        <CandidateCompare
+          candidates={compareList}
+          onClose={() => setShowCompare(false)}
+          onMessage={(c) => {
+            setShowCompare(false);
+            setInviting({ id: c.id, name: c.name });
+          }}
+        />
+      )}
 
       {inviting && (
         <InviteCandidateModal candidateId={inviting.id} name={inviting.name} onClose={() => setInviting(null)} />
@@ -686,6 +732,9 @@ function RankedCard({
   rank,
   saved,
   open,
+  selected,
+  selectDisabled,
+  onToggleSelect,
   onToggleSave,
   onToggleOpen,
   onMessage,
@@ -694,15 +743,26 @@ function RankedCard({
   rank: number;
   saved: boolean;
   open: boolean;
+  selected: boolean;
+  selectDisabled: boolean;
+  onToggleSelect: () => void;
   onToggleSave: () => void;
   onToggleOpen: () => void;
   onMessage: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className={`rounded-xl border bg-card p-5 transition-colors ${selected ? "border-primary/50 ring-1 ring-primary/30" : "border-border"}`}>
       <div className="flex items-start gap-4">
-        <div className="flex w-8 shrink-0 flex-col items-center">
+        <div className="flex w-8 shrink-0 flex-col items-center gap-2">
           <span className={`text-lg font-bold tabular-nums ${rankMedal(rank - 1)}`}>#{rank}</span>
+          <input
+            type="checkbox"
+            checked={selected}
+            disabled={selectDisabled}
+            onChange={onToggleSelect}
+            title={selectDisabled ? "Compare up to 4 at a time" : "Select to compare"}
+            className="h-4 w-4 cursor-pointer accent-[#6366f1] disabled:cursor-not-allowed disabled:opacity-40"
+          />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
