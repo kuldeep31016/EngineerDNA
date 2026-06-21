@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList } from "lucide-react";
+import { ChevronDown, ClipboardList } from "lucide-react";
 import {
   APPLICATION_STATUSES,
   JOB_TYPES,
@@ -12,6 +12,7 @@ import {
 } from "@engineerdna/shared";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { LifecyclePanel } from "@/components/applications/LifecyclePanel";
 import { Pagination } from "@/components/ui/Pagination";
 import { usePagination } from "@/hooks/usePagination";
 import { getMyApplications, getMyApplicationStats } from "@/services/applications";
@@ -39,34 +40,47 @@ function ApplicationCard({ app }: { app: MyApplication }) {
   const info = statusInfo(app.status);
   const company = app.job.company?.name ?? "Company";
   const jobType = JOB_TYPES.find((t) => t.value === app.job.type)?.label ?? app.job.type;
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-bold text-primary">
-          {company.charAt(0).toUpperCase()}
+    <div className="rounded-xl border border-border bg-card">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-4 p-4 text-left"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-bold text-primary">
+            {company.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <span className="text-sm font-semibold">{app.job.title}</span>
+            <p className="text-xs text-muted-foreground">
+              {company} · {jobType}
+              {app.job.location ? ` · ${app.job.location}` : ""}
+            </p>
+          </div>
         </div>
-        <div>
-          <Link
-            href={`/jobs/${app.job.id}`}
-            className="text-sm font-semibold transition-colors hover:text-primary"
-          >
-            {app.job.title}
-          </Link>
-          <p className="text-xs text-muted-foreground">
-            {company} · {jobType}
-            {app.job.location ? ` · ${app.job.location}` : ""}
-          </p>
-        </div>
-      </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className={`text-xs font-medium ${info.color}`}>{info.label}</span>
-        <p className="text-[11px] text-muted-foreground">
-          Applied{" "}
-          {new Date(app.appliedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-        </p>
-      </div>
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="flex flex-col items-end gap-1">
+            <span className={`text-xs font-medium ${info.color}`}>{info.label}</span>
+            <p className="text-[11px] text-muted-foreground">
+              Applied{" "}
+              {new Date(app.appliedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+            </p>
+          </div>
+          <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-border p-4">
+          <Link href={`/jobs/${app.job.id}`} className="mb-3 inline-block text-xs text-primary hover:underline">
+            View job posting →
+          </Link>
+          <LifecyclePanel applicationId={app.id} role="student" />
+        </div>
+      )}
     </div>
   );
 }

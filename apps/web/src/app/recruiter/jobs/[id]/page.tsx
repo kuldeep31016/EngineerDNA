@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Bookmark,
   BookmarkCheck,
+  CalendarClock,
   ChevronDown,
   ClipboardList,
   ExternalLink,
@@ -24,6 +25,7 @@ import type { JobPost, ProctoringReport, RankedCandidate, RecruiterApplicant } f
 import { APPLICATION_STATUSES, type ApplicationStatus } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
 import { LoadingScreen } from "@/components/LoadingScreen";
+import { LifecyclePanel } from "@/components/applications/LifecyclePanel";
 import { addShortlist, removeShortlist } from "@/services/recruiter";
 import { getJob, getJobRanking } from "@/services/jobs";
 import { getJobApplications, updateApplicationStatus } from "@/services/applications";
@@ -106,6 +108,12 @@ function JobDetailContent() {
 
   async function changeStatus(applicationId: string, status: ApplicationStatus) {
     await updateApplicationStatus(applicationId, status);
+    syncStatus(applicationId, status);
+  }
+
+  // Reflect a status change that the server already made (e.g. via the
+  // lifecycle panel scheduling an interview or sending an offer) — no extra call.
+  function syncStatus(applicationId: string, status: ApplicationStatus) {
     setApplicants((prev) =>
       prev?.map((a) => (a.applicationId === applicationId ? { ...a, status } : a)) ?? prev,
     );
@@ -229,6 +237,7 @@ function JobDetailContent() {
                     key={a.applicationId}
                     applicant={a}
                     onStatusChange={changeStatus}
+                    onSyncStatus={syncStatus}
                     onMessage={() => setInviting({ id: a.studentId, name: a.name ?? "candidate" })}
                   />
                 ))}
@@ -419,14 +428,17 @@ function IntegrityBadge({ p }: { p: ProctoringReport }) {
 function ApplicantCard({
   applicant: a,
   onStatusChange,
+  onSyncStatus,
   onMessage,
 }: {
   applicant: RecruiterApplicant;
   onStatusChange: (id: string, status: ApplicationStatus) => Promise<void>;
+  onSyncStatus: (id: string, status: ApplicationStatus) => void;
   onMessage: () => void;
 }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [hiringOpen, setHiringOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const statusInfo = APPLICATION_STATUSES.find((s) => s.value === a.status);
 
@@ -557,6 +569,14 @@ function ApplicantCard({
           </a>
         )}
         <button
+          onClick={() => setHiringOpen((v) => !v)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+        >
+          <CalendarClock className="h-3.5 w-3.5" />
+          Manage hiring
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${hiringOpen ? "rotate-180" : ""}`} />
+        </button>
+        <button
           onClick={onMessage}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
         >
@@ -644,6 +664,17 @@ function ApplicantCard({
               {a.resumeSkills.length > 0 ? " — matched on resume keywords only." : "."}
             </p>
           )}
+        </div>
+      )}
+
+      {/* Hiring lifecycle — schedule interviews, send offers, view the timeline */}
+      {hiringOpen && (
+        <div className="mt-3 border-t border-border pt-3">
+          <LifecyclePanel
+            applicationId={a.applicationId}
+            role="recruiter"
+            onChange={(life) => onSyncStatus(a.applicationId, life.status)}
+          />
         </div>
       )}
     </div>
