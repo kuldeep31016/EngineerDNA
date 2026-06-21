@@ -90,8 +90,14 @@ docker compose up postgres redis neo4j
 | `pnpm build` | Build shared → api → web |
 | `pnpm lint` | Lint every package |
 | `pnpm format` | Prettier-format the repo |
+| `pnpm db:seed` | Load a full demo dataset (recruiter, company, candidates, a complete hiring funnel) |
 | `./scripts/stop.sh` | Stop the Docker stack |
 | `./scripts/reset.sh` | Stop **and wipe** local DB volumes |
+
+> **Demo data:** `pnpm db:seed` is idempotent and only touches demo accounts. It seeds a recruiter
+> (`demo.recruiter@engineerdna.dev` / `demo1234`), the **Northwind Labs** company with open roles, five
+> verified candidates with real evidence, and applications spanning every pipeline stage — including one
+> hire — so the analytics funnel, application timelines, comparison, and dashboards all render with data.
 
 ## Development workflow
 

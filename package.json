@@ -20,6 +20,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css}\"",
     "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "db:seed": "pnpm --filter @engineerdna/api seed",
     "db:studio": "prisma studio --schema apps/api/prisma/schema.prisma"
   },
   "devDependencies": {
