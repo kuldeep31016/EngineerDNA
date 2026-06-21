@@ -6,6 +6,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { LoadingScreen } from "@/components/LoadingScreen";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PassportHeader } from "@/components/passport/PassportHeader";
+import { ShareProfileCard } from "@/components/passport/ShareProfileCard";
 import { EditProfileDialog } from "@/components/passport/EditProfileDialog";
 import { SkillsCard } from "@/components/passport/SkillsCard";
 import { EditableListSection } from "@/components/passport/EditableListSection";
@@ -39,6 +40,8 @@ function PassportContent() {
   return (
     <main className="mx-auto max-w-3xl space-y-5 px-6 py-8">
       <PassportHeader profile={profile} onEdit={() => setEditing(true)} />
+
+      <ShareProfileCard profile={profile} onEdit={() => setEditing(true)} />
 
       <Card>
         <CardHeader>

@@ -21,6 +21,7 @@ export function EditProfileDialog({
   onSave: (input: UpdateProfileInput) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<UpdateProfileInput>({
+    username: profile.username ?? "",
     headline: profile.headline ?? "",
     about: profile.about ?? "",
     location: profile.location ?? "",
@@ -64,6 +65,21 @@ export function EditProfileDialog({
   return (
     <Dialog open={open} onClose={onClose} title="Edit profile">
       <div className="space-y-4">
+        <div>
+          <Label htmlFor="username">Public profile username</Label>
+          <Input
+            id="username"
+            placeholder="your-handle"
+            value={(draft.username as string | undefined) ?? ""}
+            onChange={(e) =>
+              set({ username: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })
+            }
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            Your shareable verified profile: engineerdna.app/u/<span className="text-foreground">{(draft.username as string) || "your-handle"}</span>
+          </p>
+        </div>
+
         <div>
           <Label htmlFor="about">About</Label>
           <Textarea
