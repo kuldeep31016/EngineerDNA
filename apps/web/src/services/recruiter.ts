@@ -2,11 +2,13 @@ import {
   authUserSchema,
   candidateProfileSchema,
   candidateSearchResultSchema,
+  recruiterAnalyticsSchema,
   recruiterDashboardSchema,
   recruiterNoteSchema,
   type AuthUser,
   type CandidateProfile,
   type CandidateSearchResult,
+  type RecruiterAnalytics,
   type RecruiterDashboard,
   type RecruiterNote,
   type SearchCandidatesInput,
@@ -25,6 +27,11 @@ export async function searchCandidates(input: SearchCandidatesInput): Promise<Ca
   return candidateSearchResultSchema.parse(
     await apiFetch<unknown>("/recruiter/search", { method: "POST", body: JSON.stringify(input) }),
   );
+}
+
+/** GET — aggregated hiring funnel + conversion analytics across all jobs. */
+export async function getRecruiterAnalytics(): Promise<RecruiterAnalytics> {
+  return recruiterAnalyticsSchema.parse(await apiFetch<unknown>("/recruiter/analytics"));
 }
 
 /** GET — a candidate's full verified profile. */
