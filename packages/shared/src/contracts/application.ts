@@ -5,20 +5,29 @@ import { proctoringReportSchema } from "./interview";
 export const applicationStatusSchema = z.enum([
   "APPLIED",
   "VIEWED",
+  "SCREENING",
   "SHORTLISTED",
   "INTERVIEW",
+  "INTERVIEW_SCHEDULED",
+  "OFFER_SENT",
+  "OFFER_ACCEPTED",
   "REJECTED",
   "SELECTED",
+  "HIRED",
 ]);
 export type ApplicationStatus = z.infer<typeof applicationStatusSchema>;
 
+/** Full ATS pipeline, in order — used for the Kanban board + status menus. */
 export const APPLICATION_STATUSES: { value: ApplicationStatus; label: string; color: string }[] = [
   { value: "APPLIED", label: "Applied", color: "text-blue-400" },
   { value: "VIEWED", label: "Viewed", color: "text-yellow-400" },
+  { value: "SCREENING", label: "Screening", color: "text-sky-400" },
   { value: "SHORTLISTED", label: "Shortlisted", color: "text-violet-400" },
-  { value: "INTERVIEW", label: "Interview", color: "text-cyan-400" },
+  { value: "INTERVIEW_SCHEDULED", label: "Interview Scheduled", color: "text-cyan-400" },
+  { value: "OFFER_SENT", label: "Offer Sent", color: "text-amber-400" },
+  { value: "OFFER_ACCEPTED", label: "Offer Accepted", color: "text-emerald-400" },
+  { value: "HIRED", label: "Hired", color: "text-emerald-400" },
   { value: "REJECTED", label: "Rejected", color: "text-rose-400" },
-  { value: "SELECTED", label: "Selected", color: "text-emerald-400" },
 ];
 
 /** Student's view of their own application (with job info joined). */
@@ -100,6 +109,67 @@ export const studentApplicationStatsSchema = z.object({
   rejected: z.number(),
 });
 export type StudentApplicationStats = z.infer<typeof studentApplicationStatsSchema>;
+
+/* ---------------- Hiring lifecycle: timeline, interviews, offers ---------------- */
+
+export const applicationEventSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  actorRole: z.enum(["recruiter", "student", "system"]),
+  note: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type ApplicationEvent = z.infer<typeof applicationEventSchema>;
+
+export const interviewScheduleStatusSchema = z.enum(["PROPOSED", "ACCEPTED", "DECLINED"]);
+export const interviewScheduleSchema = z.object({
+  scheduledAt: z.string(),
+  meetingLink: z.string().nullable(),
+  notes: z.string().nullable(),
+  status: interviewScheduleStatusSchema,
+});
+export type InterviewSchedule = z.infer<typeof interviewScheduleSchema>;
+
+export const offerStatusSchema = z.enum(["SENT", "ACCEPTED", "REJECTED"]);
+export const offerSchema = z.object({
+  salary: z.string(),
+  joiningDate: z.string().nullable(),
+  employmentType: jobTypeSchema,
+  message: z.string().nullable(),
+  status: offerStatusSchema,
+});
+export type Offer = z.infer<typeof offerSchema>;
+
+/** The full lifecycle of one application — timeline + current interview + offer. */
+export const applicationLifecycleSchema = z.object({
+  applicationId: z.string(),
+  status: applicationStatusSchema,
+  timeline: z.array(applicationEventSchema),
+  interview: interviewScheduleSchema.nullable(),
+  offer: offerSchema.nullable(),
+});
+export type ApplicationLifecycle = z.infer<typeof applicationLifecycleSchema>;
+
+export const scheduleInterviewRequestSchema = z.object({
+  scheduledAt: z.string().datetime(),
+  meetingLink: z.string().trim().url().max(500).optional(),
+  notes: z.string().trim().max(1000).optional(),
+});
+export type ScheduleInterviewInput = z.infer<typeof scheduleInterviewRequestSchema>;
+
+export const respondInterviewRequestSchema = z.object({ action: z.enum(["accept", "decline"]) });
+export type RespondInterviewInput = z.infer<typeof respondInterviewRequestSchema>;
+
+export const sendOfferRequestSchema = z.object({
+  salary: z.string().trim().min(1).max(80),
+  joiningDate: z.string().datetime().optional(),
+  employmentType: jobTypeSchema.default("FULL_TIME"),
+  message: z.string().trim().max(2000).optional(),
+});
+export type SendOfferInput = z.infer<typeof sendOfferRequestSchema>;
+
+export const respondOfferRequestSchema = z.object({ action: z.enum(["accept", "reject"]) });
+export type RespondOfferInput = z.infer<typeof respondOfferRequestSchema>;
 
 /** Recruiter dashboard headline numbers. */
 export const recruiterDashboardSchema = z.object({
