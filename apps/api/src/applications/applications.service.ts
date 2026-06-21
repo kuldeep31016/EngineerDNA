@@ -8,11 +8,16 @@ import type { User } from "@prisma/client";
 import { proctoringReportSchema } from "@engineerdna/shared";
 import type {
   ApplyRequest,
+  ApplicationEvent,
+  ApplicationLifecycle,
   DeveloperEvidenceItem,
   MatchedRepo,
   MyApplication,
+  Offer,
   RecruiterApplicant,
   RecruiterDashboard,
+  ScheduleInterviewInput,
+  SendOfferInput,
   StudentApplicationStats,
   UpdateApplicationStatusInput,
 } from "@engineerdna/shared";
@@ -38,20 +43,30 @@ function techMatches(reqNorm: string, techNorm: string): boolean {
 
 const STATUS_MESSAGES: Record<string, string> = {
   VIEWED: "Your application has been viewed by the recruiter.",
+  SCREENING: "Your application is being screened.",
   SHORTLISTED: "Congratulations! You have been shortlisted.",
   INTERVIEW: "You have been invited for an interview.",
+  INTERVIEW_SCHEDULED: "An interview has been scheduled for you.",
+  OFFER_SENT: "You have received an offer!",
+  OFFER_ACCEPTED: "Your offer acceptance is confirmed.",
   REJECTED: "Unfortunately, your application was not selected.",
   SELECTED: "Congratulations! You have been selected!",
+  HIRED: "Congratulations! You have been hired!",
 };
 
 /** Human-friendly stage labels used in status-update emails. */
 const STATUS_LABELS: Record<string, string> = {
   APPLIED: "Applied",
   VIEWED: "Viewed",
+  SCREENING: "Screening",
   SHORTLISTED: "Shortlisted",
   INTERVIEW: "Interview",
+  INTERVIEW_SCHEDULED: "Interview Scheduled",
+  OFFER_SENT: "Offer Sent",
+  OFFER_ACCEPTED: "Offer Accepted",
   REJECTED: "Not selected",
   SELECTED: "Selected",
+  HIRED: "Hired",
 };
 
 @Injectable()
@@ -88,6 +103,8 @@ export class ApplicationsService {
         coverLetter: input.coverLetter ?? null,
       },
     });
+
+    await this.logEvent(app.id, "applied", "student", null);
 
     await this.notifications.create(
       student.id,
@@ -155,12 +172,13 @@ export class ApplicationsService {
       where: { studentId: student.id },
       select: { status: true },
     });
+    const inSet = (arr: string[]) => apps.filter((a) => arr.includes(a.status)).length;
     return {
       total: apps.length,
-      shortlisted: apps.filter((a) => a.status === "SHORTLISTED").length,
-      interviews: apps.filter((a) => a.status === "INTERVIEW").length,
-      offers: apps.filter((a) => a.status === "SELECTED").length,
-      rejected: apps.filter((a) => a.status === "REJECTED").length,
+      shortlisted: inSet(["SHORTLISTED"]),
+      interviews: inSet(["INTERVIEW", "INTERVIEW_SCHEDULED"]),
+      offers: inSet(["OFFER_SENT", "OFFER_ACCEPTED", "SELECTED", "HIRED"]),
+      rejected: inSet(["REJECTED"]),
     };
   }
 
@@ -173,12 +191,13 @@ export class ApplicationsService {
         select: { status: true },
       }),
     ]);
+    const inSet = (arr: string[]) => apps.filter((a) => arr.includes(a.status)).length;
     return {
       activeJobs,
       totalApplicants: apps.length,
-      shortlisted: apps.filter((a) => a.status === "SHORTLISTED").length,
-      interviews: apps.filter((a) => a.status === "INTERVIEW").length,
-      hires: apps.filter((a) => a.status === "SELECTED").length,
+      shortlisted: inSet(["SHORTLISTED"]),
+      interviews: inSet(["INTERVIEW", "INTERVIEW_SCHEDULED"]),
+      hires: inSet(["SELECTED", "HIRED", "OFFER_ACCEPTED"]),
     };
   }
 
@@ -393,6 +412,8 @@ export class ApplicationsService {
       );
     }
 
+    await this.logEvent(applicationId, "status_changed", "recruiter", STATUS_LABELS[input.status] ?? input.status);
+
     // Email the student about the status change (best-effort).
     void this.mail.sendStatusUpdate(
       app.student.email,
@@ -403,5 +424,169 @@ export class ApplicationsService {
     );
 
     return { id: updated.id, status: updated.status };
+  }
+
+  /* ---------------- Hiring lifecycle: timeline, interviews, offers ---------------- */
+
+  /** Append an immutable event to an application's timeline. */
+  private async logEvent(
+    applicationId: string,
+    type: string,
+    actorRole: "recruiter" | "student" | "system",
+    note?: string | null,
+  ): Promise<void> {
+    await this.prisma.applicationEvent.create({
+      data: { applicationId, type, actorRole, note: note ?? null },
+    });
+  }
+
+  /** Load an application, asserting the caller is the recruiter or the student. */
+  private async requireParticipant(user: User, applicationId: string) {
+    const app = await this.prisma.jobApplication.findUnique({
+      where: { id: applicationId },
+      include: {
+        job: { include: { company: true } },
+        student: { select: { id: true, email: true, name: true } },
+      },
+    });
+    if (!app) throw new NotFoundException("Application not found");
+    const isRecruiter = app.job.recruiterId === user.id;
+    const isStudent = app.studentId === user.id;
+    if (!isRecruiter && !isStudent) throw new ForbiddenException("Not your application");
+    return { app, isRecruiter, isStudent };
+  }
+
+  /** The full lifecycle of one application — timeline + current interview + offer. */
+  async getLifecycle(user: User, applicationId: string): Promise<ApplicationLifecycle> {
+    const { app } = await this.requireParticipant(user, applicationId);
+    const [events, interview, offer] = await Promise.all([
+      this.prisma.applicationEvent.findMany({
+        where: { applicationId },
+        orderBy: { createdAt: "asc" },
+      }),
+      this.prisma.interviewSchedule.findUnique({ where: { applicationId } }),
+      this.prisma.offer.findUnique({ where: { applicationId } }),
+    ]);
+    return {
+      applicationId,
+      status: app.status,
+      timeline: events.map((e) => ({
+        id: e.id,
+        type: e.type,
+        actorRole: e.actorRole as ApplicationEvent["actorRole"],
+        note: e.note,
+        createdAt: e.createdAt.toISOString(),
+      })),
+      interview: interview
+        ? {
+            scheduledAt: interview.scheduledAt.toISOString(),
+            meetingLink: interview.meetingLink,
+            notes: interview.notes,
+            status: interview.status,
+          }
+        : null,
+      offer: offer
+        ? {
+            salary: offer.salary,
+            joiningDate: offer.joiningDate ? offer.joiningDate.toISOString() : null,
+            employmentType: offer.employmentType as Offer["employmentType"],
+            message: offer.message,
+            status: offer.status,
+          }
+        : null,
+    };
+  }
+
+  /** Recruiter proposes an interview slot. */
+  async scheduleInterview(recruiter: User, applicationId: string, input: ScheduleInterviewInput): Promise<ApplicationLifecycle> {
+    const { app, isRecruiter } = await this.requireParticipant(recruiter, applicationId);
+    if (!isRecruiter) throw new ForbiddenException("Only the recruiter can schedule interviews");
+
+    await this.prisma.interviewSchedule.upsert({
+      where: { applicationId },
+      create: { applicationId, scheduledAt: new Date(input.scheduledAt), meetingLink: input.meetingLink ?? null, notes: input.notes ?? null },
+      update: { scheduledAt: new Date(input.scheduledAt), meetingLink: input.meetingLink ?? null, notes: input.notes ?? null, status: "PROPOSED" },
+    });
+    await this.prisma.jobApplication.update({ where: { id: applicationId }, data: { status: "INTERVIEW_SCHEDULED" } });
+
+    const when = new Date(input.scheduledAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    await this.logEvent(applicationId, "interview_scheduled", "recruiter", `Proposed for ${when}`);
+    await this.notifications.create(app.studentId, "Interview invitation", `You've been invited to interview for ${app.job.title} on ${when}.`);
+    void this.mail.sendStatusUpdate(app.student.email, app.student.name, app.job.title, app.job.company?.name ?? null, `Interview proposed for ${when}`);
+    return this.getLifecycle(recruiter, applicationId);
+  }
+
+  /** Student accepts or declines a proposed interview slot. */
+  async respondInterview(student: User, applicationId: string, action: "accept" | "decline"): Promise<ApplicationLifecycle> {
+    const { app, isStudent } = await this.requireParticipant(student, applicationId);
+    if (!isStudent) throw new ForbiddenException("Only the candidate can respond");
+    const schedule = await this.prisma.interviewSchedule.findUnique({ where: { applicationId } });
+    if (!schedule || schedule.status !== "PROPOSED") throw new ForbiddenException("No pending interview to respond to");
+
+    await this.prisma.interviewSchedule.update({
+      where: { applicationId },
+      data: { status: action === "accept" ? "ACCEPTED" : "DECLINED" },
+    });
+    await this.logEvent(applicationId, action === "accept" ? "interview_accepted" : "interview_declined", "student", null);
+    await this.notifications.create(
+      app.job.recruiterId,
+      action === "accept" ? "Interview accepted" : "Interview declined",
+      `${student.name ?? "A candidate"} ${action === "accept" ? "accepted" : "declined"} the interview for ${app.job.title}.`,
+    );
+    return this.getLifecycle(student, applicationId);
+  }
+
+  /** Recruiter sends an offer. */
+  async sendOffer(recruiter: User, applicationId: string, input: SendOfferInput): Promise<ApplicationLifecycle> {
+    const { app, isRecruiter } = await this.requireParticipant(recruiter, applicationId);
+    if (!isRecruiter) throw new ForbiddenException("Only the recruiter can send offers");
+
+    await this.prisma.offer.upsert({
+      where: { applicationId },
+      create: {
+        applicationId,
+        salary: input.salary,
+        joiningDate: input.joiningDate ? new Date(input.joiningDate) : null,
+        employmentType: input.employmentType,
+        message: input.message ?? null,
+      },
+      update: {
+        salary: input.salary,
+        joiningDate: input.joiningDate ? new Date(input.joiningDate) : null,
+        employmentType: input.employmentType,
+        message: input.message ?? null,
+        status: "SENT",
+      },
+    });
+    await this.prisma.jobApplication.update({ where: { id: applicationId }, data: { status: "OFFER_SENT" } });
+
+    await this.logEvent(applicationId, "offer_sent", "recruiter", `${input.salary} · ${input.employmentType}`);
+    await this.notifications.create(app.studentId, "🎉 You got an offer!", `${app.job.company?.name ?? "A company"} sent you an offer for ${app.job.title} (${input.salary}).`);
+    void this.mail.sendStatusUpdate(app.student.email, app.student.name, app.job.title, app.job.company?.name ?? null, `Offer sent — ${input.salary}`);
+    return this.getLifecycle(recruiter, applicationId);
+  }
+
+  /** Student accepts or rejects an offer. */
+  async respondOffer(student: User, applicationId: string, action: "accept" | "reject"): Promise<ApplicationLifecycle> {
+    const { app, isStudent } = await this.requireParticipant(student, applicationId);
+    if (!isStudent) throw new ForbiddenException("Only the candidate can respond");
+    const offer = await this.prisma.offer.findUnique({ where: { applicationId } });
+    if (!offer || offer.status !== "SENT") throw new ForbiddenException("No pending offer to respond to");
+
+    await this.prisma.offer.update({
+      where: { applicationId },
+      data: { status: action === "accept" ? "ACCEPTED" : "REJECTED" },
+    });
+    await this.prisma.jobApplication.update({
+      where: { id: applicationId },
+      data: { status: action === "accept" ? "OFFER_ACCEPTED" : "REJECTED" },
+    });
+    await this.logEvent(applicationId, action === "accept" ? "offer_accepted" : "offer_rejected", "student", null);
+    await this.notifications.create(
+      app.job.recruiterId,
+      action === "accept" ? "🎉 Offer accepted!" : "Offer declined",
+      `${student.name ?? "A candidate"} ${action === "accept" ? "accepted" : "declined"} your offer for ${app.job.title}.`,
+    );
+    return this.getLifecycle(student, applicationId);
   }
 }

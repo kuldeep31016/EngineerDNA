@@ -3,12 +3,21 @@ import type { User } from "@prisma/client";
 import {
   applyRequestSchema,
   updateApplicationStatusSchema,
+  scheduleInterviewRequestSchema,
+  respondInterviewRequestSchema,
+  sendOfferRequestSchema,
+  respondOfferRequestSchema,
   type ApplyRequest,
+  type ApplicationLifecycle,
   type MyApplication,
   type RecruiterApplicant,
   type RecruiterDashboard,
   type StudentApplicationStats,
   type UpdateApplicationStatusInput,
+  type ScheduleInterviewInput,
+  type RespondInterviewInput,
+  type SendOfferInput,
+  type RespondOfferInput,
 } from "@engineerdna/shared";
 import { ApplicationsService } from "./applications.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -73,5 +82,55 @@ export class ApplicationsController {
     @Body(new ZodValidationPipe(updateApplicationStatusSchema)) body: UpdateApplicationStatusInput,
   ): Promise<{ id: string; status: string }> {
     return this.applications.updateStatus(user, id, body);
+  }
+
+  /** GET /api/applications/:id/timeline — full lifecycle (recruiter or student party). */
+  @Get("applications/:id/timeline")
+  timeline(@CurrentUser() user: User, @Param("id") id: string): Promise<ApplicationLifecycle> {
+    return this.applications.getLifecycle(user, id);
+  }
+
+  /** POST /api/applications/:id/interview — recruiter proposes an interview slot. */
+  @Post("applications/:id/interview")
+  @UseGuards(RolesGuard)
+  @Roles("RECRUITER", "ADMIN")
+  scheduleInterview(
+    @CurrentUser() user: User,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(scheduleInterviewRequestSchema)) body: ScheduleInterviewInput,
+  ): Promise<ApplicationLifecycle> {
+    return this.applications.scheduleInterview(user, id, body);
+  }
+
+  /** POST /api/applications/:id/interview/respond — student accepts/declines. */
+  @Post("applications/:id/interview/respond")
+  respondInterview(
+    @CurrentUser() user: User,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(respondInterviewRequestSchema)) body: RespondInterviewInput,
+  ): Promise<ApplicationLifecycle> {
+    return this.applications.respondInterview(user, id, body.action);
+  }
+
+  /** POST /api/applications/:id/offer — recruiter sends an offer. */
+  @Post("applications/:id/offer")
+  @UseGuards(RolesGuard)
+  @Roles("RECRUITER", "ADMIN")
+  sendOffer(
+    @CurrentUser() user: User,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(sendOfferRequestSchema)) body: SendOfferInput,
+  ): Promise<ApplicationLifecycle> {
+    return this.applications.sendOffer(user, id, body);
+  }
+
+  /** POST /api/applications/:id/offer/respond — student accepts/rejects. */
+  @Post("applications/:id/offer/respond")
+  respondOffer(
+    @CurrentUser() user: User,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(respondOfferRequestSchema)) body: RespondOfferInput,
+  ): Promise<ApplicationLifecycle> {
+    return this.applications.respondOffer(user, id, body.action);
   }
 }
