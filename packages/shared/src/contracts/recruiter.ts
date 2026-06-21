@@ -78,6 +78,24 @@ export const candidateSearchResultSchema = z.object({
 });
 export type CandidateSearchResult = z.infer<typeof candidateSearchResultSchema>;
 
+/** A recruiter's private note + rating on a candidate (never shown to students). */
+export const recruiterNoteSchema = z.object({
+  body: z.string().nullable(),
+  rating: z.number().int().min(1).max(5).nullable(),
+  updatedAt: z.string(),
+});
+export type RecruiterNote = z.infer<typeof recruiterNoteSchema>;
+
+export const upsertRecruiterNoteRequestSchema = z
+  .object({
+    body: z.string().trim().max(4000).optional(),
+    rating: z.number().int().min(1).max(5).nullable().optional(),
+  })
+  .refine((v) => v.body !== undefined || v.rating !== undefined, {
+    message: "Provide a note or a rating",
+  });
+export type UpsertRecruiterNoteInput = z.infer<typeof upsertRecruiterNoteRequestSchema>;
+
 /** Self-serve role switch (Student ↔ Recruiter) so the two-sided app is usable. */
 export const switchRoleRequestSchema = z.object({
   role: z.enum(["STUDENT", "RECRUITER"]),
