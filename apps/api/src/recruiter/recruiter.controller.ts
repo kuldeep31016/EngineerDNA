@@ -1,10 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from "@nestjs/common";
 import type { User } from "@prisma/client";
 import {
   searchCandidatesRequestSchema,
+  upsertRecruiterNoteRequestSchema,
   type CandidateProfile,
   type CandidateSearchResult,
+  type RecruiterNote,
   type SearchCandidatesInput,
+  type UpsertRecruiterNoteInput,
 } from "@engineerdna/shared";
 import { RecruiterService } from "./recruiter.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -37,6 +40,22 @@ export class RecruiterController {
   @Get("candidates/:id")
   candidate(@CurrentUser() user: User, @Param("id") id: string): Promise<CandidateProfile> {
     return this.recruiter.getCandidate(user, id);
+  }
+
+  /** GET /api/recruiter/candidates/:id/note — the recruiter's private note + rating. */
+  @Get("candidates/:id/note")
+  getNote(@CurrentUser() user: User, @Param("id") id: string): Promise<RecruiterNote | null> {
+    return this.recruiter.getNote(user, id);
+  }
+
+  /** PUT /api/recruiter/candidates/:id/note — create or update the note + rating. */
+  @Put("candidates/:id/note")
+  upsertNote(
+    @CurrentUser() user: User,
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(upsertRecruiterNoteRequestSchema)) body: UpsertRecruiterNoteInput,
+  ): Promise<RecruiterNote> {
+    return this.recruiter.upsertNote(user, id, body);
   }
 
   /** POST /api/recruiter/shortlist/:id — add a candidate to the shortlist. */

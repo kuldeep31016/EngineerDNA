@@ -6,7 +6,9 @@ import type {
   CandidateSearchResult,
   CandidateSummary,
   DeveloperEvidenceItem,
+  RecruiterNote,
   SearchCandidatesInput,
+  UpsertRecruiterNoteInput,
 } from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EvidenceService } from "../evidence/evidence.service";
@@ -141,6 +143,35 @@ export class RecruiterService {
     await this.prisma.shortlist.deleteMany({
       where: { recruiterId: recruiter.id, candidateId },
     });
+  }
+
+  /** The recruiter's private note + rating on a candidate (null if none yet). */
+  async getNote(recruiter: User, candidateId: string): Promise<RecruiterNote | null> {
+    const note = await this.prisma.recruiterNote.findUnique({
+      where: { recruiterId_candidateId: { recruiterId: recruiter.id, candidateId } },
+    });
+    if (!note) return null;
+    return { body: note.body, rating: note.rating, updatedAt: note.updatedAt.toISOString() };
+  }
+
+  /** Create or update the recruiter's private note + rating on a candidate. */
+  async upsertNote(recruiter: User, candidateId: string, input: UpsertRecruiterNoteInput): Promise<RecruiterNote> {
+    const exists = await this.prisma.profile.findFirst({
+      where: { userId: candidateId },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException("Candidate not found");
+
+    const data: { body?: string | null; rating?: number | null } = {};
+    if (input.body !== undefined) data.body = input.body.trim() || null;
+    if (input.rating !== undefined) data.rating = input.rating;
+
+    const note = await this.prisma.recruiterNote.upsert({
+      where: { recruiterId_candidateId: { recruiterId: recruiter.id, candidateId } },
+      create: { recruiterId: recruiter.id, candidateId, ...data },
+      update: data,
+    });
+    return { body: note.body, rating: note.rating, updatedAt: note.updatedAt.toISOString() };
   }
 
   // Candidates with a passport are searchable; whether they actually appear is
