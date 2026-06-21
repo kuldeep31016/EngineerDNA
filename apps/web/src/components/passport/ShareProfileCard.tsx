@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BadgeCheck, Check, Copy, ExternalLink } from "lucide-react";
 import type { Profile } from "@engineerdna/shared";
 import { badgeUrl } from "@/services/public-profile";
+import { QrCode } from "@/components/share/QrCode";
 
 /** Surfaces the shareable public verified profile + the embeddable badge. */
 export function ShareProfileCard({ profile, onEdit }: { profile: Profile; onEdit: () => void }) {
@@ -61,17 +62,25 @@ export function ShareProfileCard({ profile, onEdit }: { profile: Profile; onEdit
         </div>
       </div>
 
-      {/* Public link */}
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2">
-        <a href={profileUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm text-primary hover:underline">
-          {profileUrl}
-        </a>
-        <button onClick={() => copy("url", profileUrl)} title="Copy link" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
-          {copied === "url" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-        </button>
-        <a href={profileUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
-          <ExternalLink className="h-4 w-4" />
-        </a>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1 space-y-3">
+          {/* Public link */}
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2">
+            <a href={profileUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm text-primary hover:underline">
+              {profileUrl}
+            </a>
+            <button onClick={() => copy("url", profileUrl)} title="Copy link" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+              {copied === "url" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+            </button>
+            <a href={profileUrl} target="_blank" rel="noreferrer" className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Scan the QR to open your verified profile on any phone — perfect for resumes, business cards, or a slide.
+          </p>
+        </div>
+        <QrCode value={profileUrl} size={132} downloadName={`engineerdna-${profile.username}.png`} />
       </div>
 
       {/* Badge preview */}
