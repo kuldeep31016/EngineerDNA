@@ -96,6 +96,48 @@ export const upsertRecruiterNoteRequestSchema = z
   });
 export type UpsertRecruiterNoteInput = z.infer<typeof upsertRecruiterNoteRequestSchema>;
 
+/** Aggregated hiring analytics across all of a recruiter's jobs. Deterministic. */
+export const recruiterAnalyticsSchema = z.object({
+  totals: z.object({
+    jobs: z.number(),
+    openJobs: z.number(),
+    applicants: z.number(),
+    hires: z.number(),
+  }),
+  // Snapshot distribution of where applicants currently sit.
+  stages: z.object({
+    applied: z.number(),
+    viewed: z.number(),
+    screening: z.number(),
+    shortlisted: z.number(),
+    interview: z.number(),
+    offer: z.number(),
+    hired: z.number(),
+    rejected: z.number(),
+  }),
+  // Cumulative "reached at least this stage" rates, as percentages (0-100).
+  conversion: z.object({
+    shortlistRate: z.number(),
+    interviewRate: z.number(),
+    offerRate: z.number(),
+    hireRate: z.number(),
+  }),
+  avgDaysToHire: z.number().nullable(),
+  perJob: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      status: z.enum(["OPEN", "CLOSED"]),
+      applicants: z.number(),
+      shortlisted: z.number(),
+      interviewing: z.number(),
+      offers: z.number(),
+      hired: z.number(),
+    }),
+  ),
+});
+export type RecruiterAnalytics = z.infer<typeof recruiterAnalyticsSchema>;
+
 /** Self-serve role switch (Student ↔ Recruiter) so the two-sided app is usable. */
 export const switchRoleRequestSchema = z.object({
   role: z.enum(["STUDENT", "RECRUITER"]),
