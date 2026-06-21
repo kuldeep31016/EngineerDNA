@@ -3,12 +3,15 @@ import {
   candidateProfileSchema,
   candidateSearchResultSchema,
   recruiterDashboardSchema,
+  recruiterNoteSchema,
   type AuthUser,
   type CandidateProfile,
   type CandidateSearchResult,
   type RecruiterDashboard,
+  type RecruiterNote,
   type SearchCandidatesInput,
   type SwitchRoleInput,
+  type UpsertRecruiterNoteInput,
 } from "@engineerdna/shared";
 import { apiFetch } from "@/lib/api";
 
@@ -40,6 +43,19 @@ export async function addShortlist(id: string): Promise<void> {
 
 export async function removeShortlist(id: string): Promise<void> {
   await apiFetch(`/recruiter/shortlist/${id}`, { method: "DELETE" });
+}
+
+/** GET — the recruiter's private note + rating on a candidate (null if none). */
+export async function getCandidateNote(id: string): Promise<RecruiterNote | null> {
+  const data = await apiFetch<unknown>(`/recruiter/candidates/${id}/note`);
+  return data ? recruiterNoteSchema.parse(data) : null;
+}
+
+/** PUT — create or update the recruiter's private note + rating. */
+export async function saveCandidateNote(id: string, input: UpsertRecruiterNoteInput): Promise<RecruiterNote> {
+  return recruiterNoteSchema.parse(
+    await apiFetch<unknown>(`/recruiter/candidates/${id}/note`, { method: "PUT", body: JSON.stringify(input) }),
+  );
 }
 
 /** PATCH — switch between Student and Recruiter mode. */

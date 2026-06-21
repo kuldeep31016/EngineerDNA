@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { CandidateProfile } from "@engineerdna/shared";
 import { RecruiterGate } from "@/components/recruiter/RecruiterGate";
+import { CandidateNoteCard } from "@/components/recruiter/CandidateNoteCard";
 import { getCandidate, addShortlist, removeShortlist } from "@/services/recruiter";
 import { inviteCandidate } from "@/services/messaging";
 
@@ -152,6 +153,10 @@ function CandidateProfilePage() {
             </a>
           )}
         </div>
+      </div>
+
+      <div className="mt-4">
+        <CandidateNoteCard candidateId={c.id} />
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
