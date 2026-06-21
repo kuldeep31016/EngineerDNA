@@ -25,7 +25,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user);
   const status = useAuthStore((s) => s.status);
 
-  if (BARE_ROUTES.has(pathname) || pathname.startsWith("/p/") || pathname.startsWith("/u/")) return <>{children}</>;
+  if (
+    BARE_ROUTES.has(pathname) ||
+    pathname.startsWith("/p/") ||
+    pathname.startsWith("/u/") ||
+    pathname.startsWith("/c/")
+  )
+    return <>{children}</>;
 
   // Until auth resolves (or right after logout), render WITHOUT a sidebar so we
   // never flash the wrong/student shell before a redirect to a login page.
