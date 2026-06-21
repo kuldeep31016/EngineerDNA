@@ -2,11 +2,15 @@ import {
   myApplicationSchema,
   recruiterApplicantSchema,
   studentApplicationStatsSchema,
+  applicationLifecycleSchema,
   type ApplyRequest,
   type MyApplication,
   type RecruiterApplicant,
   type StudentApplicationStats,
   type ApplicationStatus,
+  type ApplicationLifecycle,
+  type ScheduleInterviewInput,
+  type SendOfferInput,
 } from "@engineerdna/shared";
 import { apiFetch } from "@/lib/api";
 
@@ -41,4 +45,58 @@ export async function updateApplicationStatus(
     method: "PATCH",
     body: JSON.stringify({ status }),
   });
+}
+
+/* ---------------- Hiring lifecycle ---------------- */
+
+export async function getApplicationTimeline(applicationId: string): Promise<ApplicationLifecycle> {
+  return applicationLifecycleSchema.parse(await apiFetch<unknown>(`/applications/${applicationId}/timeline`));
+}
+
+export async function scheduleInterview(
+  applicationId: string,
+  input: ScheduleInterviewInput,
+): Promise<ApplicationLifecycle> {
+  return applicationLifecycleSchema.parse(
+    await apiFetch<unknown>(`/applications/${applicationId}/interview`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function respondInterview(
+  applicationId: string,
+  action: "accept" | "decline",
+): Promise<ApplicationLifecycle> {
+  return applicationLifecycleSchema.parse(
+    await apiFetch<unknown>(`/applications/${applicationId}/interview/respond`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }),
+  );
+}
+
+export async function sendOffer(
+  applicationId: string,
+  input: SendOfferInput,
+): Promise<ApplicationLifecycle> {
+  return applicationLifecycleSchema.parse(
+    await apiFetch<unknown>(`/applications/${applicationId}/offer`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  );
+}
+
+export async function respondOffer(
+  applicationId: string,
+  action: "accept" | "reject",
+): Promise<ApplicationLifecycle> {
+  return applicationLifecycleSchema.parse(
+    await apiFetch<unknown>(`/applications/${applicationId}/offer/respond`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }),
+  );
 }
