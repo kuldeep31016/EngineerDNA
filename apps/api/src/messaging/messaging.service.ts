@@ -1,9 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
-import { extname, join } from "node:path";
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { User } from "@prisma/client";
-import { UPLOADS_DIR } from "./uploads";
 import type {
   ChatMessage,
   Conversation,
@@ -13,6 +9,7 @@ import type {
 import { PrismaService } from "../prisma/prisma.service";
 import { NotificationsService } from "../notifications/notifications.service";
 import { MailService } from "../mail/mail.service";
+import { StorageService } from "../storage/storage.service";
 
 type PartyUser = {
   id: string;
@@ -28,6 +25,7 @@ export class MessagingService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly mail: MailService,
+    private readonly storage: StorageService,
   ) {}
 
   /** Recruiter opens (or re-opens) a conversation with an invitation. */
@@ -157,7 +155,7 @@ export class MessagingService {
     return toMessage(user.id, message);
   }
 
-  /** Send a file attachment — saved to disk, served statically at /uploads. */
+  /** Send a file attachment — stored via StorageService (local disk or S3). */
   async sendAttachment(user: User, id: string, file?: Express.Multer.File): Promise<ChatMessage> {
     const convo = await this.requireParticipant(user, id);
     if (convo.status !== "ACCEPTED") {
@@ -165,16 +163,19 @@ export class MessagingService {
     }
     if (!file) throw new BadRequestException("No file uploaded");
 
-    const ext = extname(file.originalname).slice(0, 12);
-    const name = `${randomUUID()}${ext}`;
-    await writeFile(join(UPLOADS_DIR, name), file.buffer);
+    const stored = await this.storage.put({
+      body: file.buffer,
+      folder: "attachments",
+      originalName: file.originalname,
+      contentType: file.mimetype,
+    });
 
     const message = await this.prisma.message.create({
       data: {
         conversationId: id,
         senderId: user.id,
         body: file.originalname,
-        attachmentUrl: `/uploads/${name}`,
+        attachmentUrl: stored.url,
         attachmentLabel: file.originalname,
       },
     });
