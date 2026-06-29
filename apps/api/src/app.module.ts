@@ -4,6 +4,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { PrismaModule } from "./prisma/prisma.module";
+import { StorageModule } from "./storage/storage.module";
 import { MailModule } from "./mail/mail.module";
 import { HealthModule } from "./health/health.module";
 import { UsersModule } from "./users/users.module";
@@ -48,6 +49,7 @@ import { PublicModule } from "./public/public.module";
     // Baseline rate limit (per IP). Auth + LLM routes tighten this further.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
     PrismaModule,
+    StorageModule,
     MailModule,
     LlmModule,
     HealthModule,
