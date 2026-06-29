@@ -55,20 +55,46 @@ export class AnthropicService {
 Return ONLY a single JSON object — no markdown code fences, no commentary before or after — that conforms to this JSON Schema:
 ${JSON.stringify(jsonSchema)}`;
 
-    const response = await this.getClient().messages.create({
-      model: opts.model ?? this.model,
-      max_tokens: opts.maxTokens ?? 8000,
-      system: opts.system,
-      messages: [{ role: "user", content: prompt }],
-    });
+    let text: string;
+    try {
+      const response = await this.getClient().messages.create({
+        model: opts.model ?? this.model,
+        max_tokens: opts.maxTokens ?? 8000,
+        system: opts.system,
+        messages: [{ role: "user", content: prompt }],
+      });
+      text = response.content
+        .filter((b): b is Anthropic.TextBlock => b.type === "text")
+        .map((b) => b.text)
+        .join("")
+        .trim();
+    } catch (err) {
+      // Surface Anthropic API failures (bad key, no model access, rate limit)
+      // as a clear 503 instead of an opaque 500 from the framework.
+      if (err instanceof Anthropic.APIError) {
+        const detail =
+          err.status === 401
+            ? "the ANTHROPIC_API_KEY is invalid or revoked"
+            : err.status === 403
+              ? "this API key cannot access the requested model"
+              : err.status === 404
+                ? `the model "${opts.model ?? this.model}" was not found for this key`
+                : err.status === 429
+                  ? "the Anthropic rate limit was hit — try again shortly"
+                  : `the Anthropic API returned ${err.status ?? "an error"}`;
+        this.logger.error(`Anthropic request failed: ${err.status} ${err.message}`);
+        throw new ServiceUnavailableException(`AI is unavailable — ${detail}. Check ANTHROPIC_API_KEY in .env.`);
+      }
+      this.logger.error(`Anthropic request failed: ${(err as Error).message}`);
+      throw new ServiceUnavailableException("AI is temporarily unavailable. Please try again.");
+    }
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("")
-      .trim();
-
-    return opts.schema.parse(JSON.parse(extractJsonObject(text)));
+    try {
+      return opts.schema.parse(JSON.parse(extractJsonObject(text)));
+    } catch (err) {
+      this.logger.error(`Failed to parse model response: ${(err as Error).message}`);
+      throw new ServiceUnavailableException("The AI returned an unexpected response. Please try again.");
+    }
   }
 }
 
