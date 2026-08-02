@@ -9,6 +9,7 @@ import { PasswordService } from "./password.service";
 import { JwtStrategy } from "./strategies/jwt.strategy";
 import { GithubStrategy } from "./strategies/github.strategy";
 import { GoogleStrategy } from "./strategies/google.strategy";
+import { OAuthExceptionsFilter } from "./filters/oauth-exceptions.filter";
 
 /**
  * Authentication module: OAuth login (GitHub/Google), JWT access tokens, and
@@ -26,7 +27,14 @@ import { GoogleStrategy } from "./strategies/google.strategy";
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, JwtStrategy, GithubStrategy, GoogleStrategy],
+  providers: [
+    AuthService,
+    PasswordService,
+    JwtStrategy,
+    GithubStrategy,
+    GoogleStrategy,
+    OAuthExceptionsFilter,
+  ],
   exports: [AuthService],
 })
 export class AuthModule {}

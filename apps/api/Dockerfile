@@ -4,6 +4,7 @@
 # (docker-compose handles this automatically.)
 
 FROM node:20-alpine AS build
+RUN apk add --no-cache openssl
 RUN corepack enable
 WORKDIR /repo
 COPY . .
@@ -12,6 +13,7 @@ RUN pnpm --filter @engineerdna/shared build \
   && pnpm --filter @engineerdna/api build
 
 FROM node:20-alpine AS runner
+RUN apk add --no-cache openssl
 RUN corepack enable
 WORKDIR /repo
 ENV NODE_ENV=production

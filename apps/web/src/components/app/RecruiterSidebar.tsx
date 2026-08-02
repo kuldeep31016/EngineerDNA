@@ -90,8 +90,13 @@ export function RecruiterSidebar() {
 
       <div className="border-t border-border p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-semibold text-white">
-            {(user?.name ?? user?.email ?? "?").charAt(0).toUpperCase()}
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand text-sm font-semibold text-white">
+            {user?.profileImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.profileImage} alt={user.name ?? "Your avatar"} className="h-full w-full object-cover" />
+            ) : (
+              (user?.name ?? user?.email ?? "?").charAt(0).toUpperCase()
+            )}
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{user?.name ?? "Recruiter"}</p>
