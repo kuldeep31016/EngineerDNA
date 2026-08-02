@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Post, Req, Res, UseFilters, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { Throttle } from "@nestjs/throttler";
 import { ConfigService } from "@nestjs/config";
@@ -18,6 +18,7 @@ import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { CurrentUser } from "./decorators/current-user.decorator";
 import { ZodValidationPipe } from "../common/pipes/zod-validation.pipe";
 import { REFRESH_TOKEN_COOKIE } from "./auth.constants";
+import { OAuthExceptionsFilter } from "./filters/oauth-exceptions.filter";
 
 @Controller("auth")
 export class AuthController {
@@ -61,6 +62,7 @@ export class AuthController {
   /** GET /api/auth/github — redirects to GitHub's consent screen. */
   @Get("github")
   @UseGuards(AuthGuard("github"))
+  @UseFilters(OAuthExceptionsFilter)
   githubLogin(): void {
     // Passport handles the redirect.
   }
@@ -68,6 +70,7 @@ export class AuthController {
   /** GET /api/auth/github/callback — completes login, sets cookies, redirects. */
   @Get("github/callback")
   @UseGuards(AuthGuard("github"))
+  @UseFilters(OAuthExceptionsFilter)
   async githubCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
     await this.completeOAuth(req.user as OAuthProfileInput, res);
   }
@@ -76,12 +79,14 @@ export class AuthController {
 
   @Get("google")
   @UseGuards(AuthGuard("google"))
+  @UseFilters(OAuthExceptionsFilter)
   googleLogin(): void {
     // Passport handles the redirect.
   }
 
   @Get("google/callback")
   @UseGuards(AuthGuard("google"))
+  @UseFilters(OAuthExceptionsFilter)
   async googleCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
     await this.completeOAuth(req.user as OAuthProfileInput, res);
   }
