@@ -21,6 +21,7 @@ import {
   Map,
   MessagesSquare,
   ScrollText,
+  Wand2,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,6 +42,7 @@ const NAV = [
   { href: "/copilot", label: "Career Copilot", icon: Bot },
   { href: "/interview", label: "Interview Prep", icon: MessagesSquare },
   { href: "/resume", label: "Resume Review", icon: FileText },
+  { href: "/tailor", label: "Tailor Resume", icon: Wand2 },
   { href: "/roadmap", label: "Learning Roadmap", icon: Map },
   { href: "/resources", label: "Resources", icon: Library },
   { href: "/opensource", label: "Open Source", icon: GitPullRequest },

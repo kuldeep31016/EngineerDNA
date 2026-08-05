@@ -501,6 +501,10 @@ model Profile {
   achievements       Json     @default("[]")
   certifications     Json     @default("[]")
   socialLinks        Json     @default("[]")
+  // The user's saved resume — the default source for AI tailoring. Plain text
+  // (files are parsed client-side), matching how every resume flows today.
+  resumeText         String?
+  resumeFileName     String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

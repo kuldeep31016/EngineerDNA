@@ -36,3 +36,14 @@ export async function extractResumeFile(file: File): Promise<string> {
   if (name.endsWith(".docx") || file.type.includes("word")) return extractDocxText(file);
   throw new Error("Unsupported file — upload a PDF or DOCX.");
 }
+
+/** Parse a job-description file (PDF, DOCX, or plain text) to plain text. */
+export async function extractJdFile(file: File): Promise<string> {
+  const name = file.name.toLowerCase();
+  if (file.type === "application/pdf" || name.endsWith(".pdf")) return extractPdfText(file);
+  if (name.endsWith(".docx") || file.type.includes("word")) return extractDocxText(file);
+  if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
+    return (await file.text()).trim();
+  }
+  throw new Error("Unsupported file — upload a PDF, DOCX, or TXT.");
+}

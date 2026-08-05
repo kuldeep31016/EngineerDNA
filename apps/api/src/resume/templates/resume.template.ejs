@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title><%= contact.name || "Resume" %></title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      color: #1f2430;
+      font-size: 13px;
+      line-height: 1.5;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 40px 48px;
+    }
+    .contact {
+      text-align: center;
+      border-bottom: 2px solid #1f2430;
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+    }
+    .contact h1 {
+      font-size: 26px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .contact .title {
+      font-size: 14px;
+      color: #4b5563;
+      margin-top: 4px;
+    }
+    .contact .links {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .contact .links span { margin: 0 8px; }
+    section { margin-bottom: 16px; }
+    h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      border-bottom: 1px solid #cbd5e1;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+    .summary p { text-align: justify; }
+    ul { padding-left: 18px; }
+    li { margin-bottom: 3px; }
+    .skills-list { list-style: none; padding-left: 0; display: flex; flex-wrap: wrap; gap: 6px 8px; }
+    .skills-list li { background: #f1f5f9; padding: 2px 8px; border-radius: 4px; }
+    .entry { margin-bottom: 10px; }
+    .entry .head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .entry .head .left strong { font-size: 13px; }
+    .entry .head .right { color: #4b5563; font-size: 12px; white-space: nowrap; }
+    .entry .sub { color: #4b5563; font-size: 12.5px; margin: 1px 0 4px; }
+    .entry .desc { color: #374151; margin-top: 4px; }
+    @media print {
+      body { padding: 0; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="contact">
+    <h1><%= contact.name %></h1>
+    <% if (contact.title) { %><div class="title"><%= contact.title %></div><% } %>
+    <div class="links">
+      <% var parts = []; %>
+      <% if (contact.email) { parts.push(contact.email); } %>
+      <% if (contact.phone) { parts.push(contact.phone); } %>
+      <% if (contact.location) { parts.push(contact.location); } %>
+      <% if (contact.website) { parts.push(contact.website); } %>
+      <% if (contact.github) { parts.push(contact.github); } %>
+      <% if (contact.linkedin) { parts.push(contact.linkedin); } %>
+      <% for (var i = 0; i < parts.length; i++) { %>
+        <% if (i > 0) { %> <span>|</span> <% } %>
+        <span><%= parts[i] %></span>
+      <% } %>
+    </div>
+  </header>
+
+  <% if (summary) { %>
+  <section class="summary">
+    <h2>Summary</h2>
+    <p><%= summary %></p>
+  </section>
+  <% } %>
+
+  <% if (skills.length) { %>
+  <section>
+    <h2>Skills</h2>
+    <ul class="skills-list">
+      <% skills.forEach(function (s) { %><li><%= s %></li><% }); %>
+    </ul>
+  </section>
+  <% } %>
+
+  <% if (experience.length) { %>
+  <section>
+    <h2>Experience</h2>
+    <% experience.forEach(function (e) { %>
+      <div class="entry">
+        <div class="head">
+          <div class="left"><strong><%= e.role %></strong> · <%= e.company %></div>
+          <div class="right">
+            <% var dates = []; if (e.startDate) dates.push(e.startDate); if (e.endDate) dates.push(e.endDate); %>
+            <% if (dates.length) { %><%= dates.join(" – ") %><% } %>
+          </div>
+        </div>
+        <% if (e.location) { %><div class="sub"><%= e.location %></div><% } %>
+        <% if (e.bullets.length) { %>
+        <ul>
+          <% e.bullets.forEach(function (b) { %><li><%= b %></li><% }); %>
+        </ul>
+        <% } %>
+      </div>
+    <% }); %>
+  </section>
+  <% } %>
+
+  <% if (projects.length) { %>
+  <section>
+    <h2>Projects</h2>
+    <% projects.forEach(function (p) { %>
+      <div class="entry">
+        <div class="head">
+          <div class="left"><strong><%= p.name %></strong><% if (p.url) { %> · <%= p.url %><% } %></div>
+        </div>
+        <% if (p.technologies.length) { %>
+        <div class="sub"><%= p.technologies.join(", ") %></div>
+        <% } %>
+        <% if (p.description) { %><div class="desc"><%= p.description %></div><% } %>
+      </div>
+    <% }); %>
+  </section>
+  <% } %>
+
+  <% if (education.length) { %>
+  <section>
+    <h2>Education</h2>
+    <% education.forEach(function (e) { %>
+      <div class="entry">
+        <div class="head">
+          <div class="left"><strong><%= e.school %></strong><% if (e.degree) { %> · <%= e.degree %><% } %></div>
+          <div class="right">
+            <% var years = []; if (e.startYear) years.push(e.startYear); if (e.endYear) years.push(e.endYear); %>
+            <% if (years.length) { %><%= years.join(" – ") %><% } %>
+          </div>
+        </div>
+      </div>
+    <% }); %>
+  </section>
+  <% } %>
+
+  <% if (certifications.length) { %>
+  <section>
+    <h2>Certifications</h2>
+    <ul>
+      <% certifications.forEach(function (c) { %><li><%= c %></li><% }); %>
+    </ul>
+  </section>
+  <% } %>
+</body>
+</html>
