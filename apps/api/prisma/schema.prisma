@@ -3,9 +3,12 @@
 // projection. Only auth/user tables exist at this stage — feature tables are
 // added by their owning modules.
 
+// `native` keeps local development working (macOS/Linux hosts); the musl
+// targets are for the Alpine-based Docker image, on both arm64 and x86_64.
+// Dropping `native` breaks `prisma generate` on developer machines.
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["linux-musl-arm64-openssl-3.0.x"]
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
 }
 
 datasource db {
