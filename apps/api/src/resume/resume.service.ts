@@ -1,8 +1,22 @@
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { join } from "node:path";
 import { Injectable } from "@nestjs/common";
 import type { Prisma, ResumeReview as ResumeReviewRow, User } from "@prisma/client";
 import { z } from "zod";
-import type { DeveloperEvidence, DeveloperDna, ResumeReview, ReviewResumeInput } from "@engineerdna/shared";
+import { render } from "ejs";
+import {
+  tailoredResumeDataSchema,
+  type DeveloperEvidence,
+  type DeveloperDna,
+  type ResumeReview,
+  type ReviewResumeInput,
+  type SavedResume,
+  type SaveResumeInput,
+  type TailoredResumeData,
+  type TailorResumeInput,
+  type TailorResumeResponse,
+} from "@engineerdna/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { EvidenceService } from "../evidence/evidence.service";
 import { DnaService } from "../dna/dna.service";
@@ -11,6 +25,15 @@ import { AnthropicService } from "../llm/anthropic.service";
 const SYSTEM = `You are an expert technical recruiter and engineering resume coach.
 You give specific, honest, actionable feedback and only suggest TRUTHFUL improvements grounded in the candidate's resume and their verified evidence — never fabricate experience, skills, or metrics.
 Improve the EXISTING resume; do not write a new one.`;
+
+const TAILOR_SYSTEM = `You are an expert resume writer who tailors engineering resumes to specific job descriptions.
+Your job: REWRITE and REORDER the candidate's existing resume so it best matches the job description — same person, same facts, optimized for the role.
+STRICT RULES:
+- Never fabricate experience, employers, titles, dates, projects, metrics, or skills. Use only what is in the resume (you may reword bullets and re-emphasize relevant skills).
+- Emphasize the skills, technologies, and outcomes the job description asks for — IF the resume supports them.
+- Keep the resume concise and ATS-friendly: a strong summary, tight bullets, and clearly grouped skills.
+- Mirror the job description's language for relevant keywords.
+- Keep the same overall structure as the original resume (contact, summary, skills, experience, education, projects, certifications).`;
 
 // The model returns the review body; we add `available` and `generatedAt`.
 const reviewBodySchema = z.object({
@@ -82,6 +105,49 @@ export class ResumeService {
   async getReview(user: User): Promise<ResumeReview> {
     const row = await this.prisma.resumeReview.findUnique({ where: { userId: user.id } });
     return row ? toContract(row) : emptyReview();
+  }
+
+  /** The user's saved resume (the default source for tailoring). */
+  async getSaved(user: User): Promise<SavedResume> {
+    const profile = await this.ensureProfile(user.id);
+    return {
+      available: Boolean(profile.resumeText),
+      fileName: profile.resumeFileName,
+      resumeText: profile.resumeText,
+      updatedAt: profile.updatedAt?.toISOString() ?? null,
+    };
+  }
+
+  /** Persist a resume as the user's saved profile resume. */
+  async saveResume(user: User, input: SaveResumeInput): Promise<SavedResume> {
+    await this.prisma.profile.update({
+      where: { userId: user.id },
+      data: { resumeText: input.resumeText, resumeFileName: input.fileName ?? null },
+    });
+    return this.getSaved(user);
+  }
+
+  /**
+   * Tailor the resume to a job description with AI. The model returns structured
+   * resume data, which is rendered through the EJS template to a standalone HTML
+   * document the browser can preview and print to PDF. No resume file ever leaves
+   * the browser — only the extracted text.
+   */
+  async tailorToJd(user: User, input: TailorResumeInput): Promise<TailorResumeResponse> {
+    const data = await this.anthropic.generateObject<TailoredResumeData>({
+      // The schema carries defaults (input ≠ output type), so narrow it here.
+      schema: tailoredResumeDataSchema as unknown as z.ZodType<TailoredResumeData>,
+      system: TAILOR_SYSTEM,
+      maxTokens: 8000,
+      prompt: buildTailorPrompt(input.resumeText, input.jdText),
+    });
+
+    const html = render(template(), data);
+    return { available: true, data, html, generatedAt: new Date().toISOString() };
+  }
+
+  private async ensureProfile(userId: string) {
+    return this.prisma.profile.upsert({ where: { userId }, create: { userId }, update: {} });
   }
 }
 
@@ -178,5 +244,39 @@ function buildPrompt(resumeText: string, evidence: DeveloperEvidence, dna: Devel
     "- missingKeywords: important role keywords to add — only ones justified by their evidence or experience.",
     "- rewrites: 3-6 weak bullets rewritten stronger. Each: section, original (close to verbatim), improved. Improvements MUST stay truthful to the resume/evidence; never invent achievements or numbers.",
     "- structure: ordering, structure, and removal recommendations.",
+  ].join("\n");
+}
+
+/** Load the EJS resume template (copied to dist by nest-cli assets). */
+function template(): string {
+  const path = join(__dirname, "templates", "resume.template.ejs");
+  return readFileSync(path, "utf8");
+}
+
+/** Ground the tailor output in the resume text and the job description. */
+function buildTailorPrompt(resumeText: string, jdText: string): string {
+  return [
+    "Rewrite the candidate's resume so it best fits the job description below.",
+    "",
+    "CANDIDATE'S CURRENT RESUME:",
+    '"""',
+    resumeText.slice(0, 16000),
+    '"""',
+    "",
+    "JOB DESCRIPTION:",
+    '"""',
+    jdText.slice(0, 24000),
+    '"""',
+    "",
+    "Produce the tailored resume as structured data:",
+    "- contact: the candidate's real name and contact details (only what's in the resume; leave blank fields empty).",
+    "- summary: 2-3 punchy sentences positioning the candidate for THIS role using the JD's key requirements.",
+    "- skills: the most relevant skills for this role, grouped and ordered by relevance to the JD (only real skills from the resume).",
+    "- experience: reorder entries if it helps (most relevant first), rewrite bullets to emphasize the JD's keywords and quantify impact where the resume supports it. Keep dates/companies truthful.",
+    "- education: as in the resume.",
+    "- projects: keep the most relevant ones for this role; describe them using JD language.",
+    "- certifications: only real ones from the resume.",
+    "",
+    "Rules: strictly truthful. Never invent employers, schools, dates, links, skills, or metrics. Drop irrelevant detail rather than pad. Output ONLY the JSON object.",
   ].join("\n");
 }

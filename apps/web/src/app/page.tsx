@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RedirectIfAuthed } from "@/components/auth/RedirectIfAuthed";
 
 /* Exact design tokens from the provided EngineerDNA design. */
 const C = {
@@ -47,19 +48,21 @@ const mono = "'JetBrains Mono', ui-monospace, monospace";
 
 export default function LandingPage() {
   return (
-    <div style={{ background: C.bg, color: C.tx, minHeight: "100vh" }}>
-      <Nav />
-      <Hero />
-      <TrustedBy />
-      <Problem />
-      <HowItWorks />
-      <Features />
-      <Showcase />
-      <WhyComparison />
-      <Testimonials />
-      <FinalCta />
-      <Footer />
-    </div>
+    <RedirectIfAuthed>
+      <div style={{ background: C.bg, color: C.tx, minHeight: "100vh" }}>
+        <Nav />
+        <Hero />
+        <TrustedBy />
+        <Problem />
+        <HowItWorks />
+        <Features />
+        <Showcase />
+        <WhyComparison />
+        <Testimonials />
+        <FinalCta />
+        <Footer />
+      </div>
+    </RedirectIfAuthed>
   );
 }
 
