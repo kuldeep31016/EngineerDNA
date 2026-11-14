@@ -21,6 +21,7 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ["var(--font-sans)", "Satoshi", "Inter", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "EB Garamond", "Georgia", "serif"],
         mono: ["var(--font-mono)", "JetBrains Mono", "ui-monospace", "monospace"],
       },
       colors: {
