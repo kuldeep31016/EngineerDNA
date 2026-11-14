@@ -1,5 +1,14 @@
+const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+
+/**
+ * Base URL for API calls. When NEXT_PUBLIC_API_URL is a relative path (e.g. "/api",
+ * proxied by next.config rewrites), server-side code can't resolve it, so on the
+ * server we call the API host directly via API_PROXY_TARGET.
+ */
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+  typeof window === "undefined" && PUBLIC_API_URL.startsWith("/") && process.env.API_PROXY_TARGET
+    ? `${process.env.API_PROXY_TARGET.replace(/\/+$/, "")}${PUBLIC_API_URL}`
+    : PUBLIC_API_URL;
 
 /** API server origin (no /api prefix) — for static assets like /uploads. */
 export const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
