@@ -26,6 +26,7 @@
 
     --font-sans: "Satoshi", "Inter", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    --font-display: "EB Garamond", "Cormorant Garamond", Georgia, serif;
 
     /* Brand + accents (raw, for gradients and chart-like UI). */
     --brand-from: #6366f1;
@@ -86,4 +87,128 @@
   .font-mono {
     font-family: var(--font-mono), ui-monospace, monospace;
   }
+}
+
+/*
+ * Editorial type: page and section headings use a light classical serif
+ * (EB Garamond) against the Satoshi body.
+ * Declared after the utilities so it wins over font-bold/tracking-tight on
+ * headings; small uppercase label headings keep the sans.
+ */
+h1:not(.font-sans),
+h2:not(.uppercase):not(.font-sans),
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  line-height: 1.08;
+}
+/* Small uppercase, widely tracked sans labels ("STAY", "DINE"...). */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+/* ---------------- Landing motion ---------------- */
+.edna-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.8s ease, transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.edna-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+/* Nothing inside a section animates until it has scrolled into view. */
+.edna-reveal:not(.is-visible) * {
+  animation-play-state: paused !important;
+}
+
+@keyframes edna-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes edna-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes edna-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes edna-pop {
+  0% { opacity: 0; transform: scale(0.6) translateY(6px); }
+  70% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes edna-radar {
+  from { opacity: 0; transform: scale(0.2); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes edna-scan {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(520px); opacity: 0; }
+}
+@keyframes edna-strike {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes edna-fade-blur {
+  0%, 30% { opacity: 1; filter: none; }
+  60%, 100% { opacity: 0.25; filter: blur(2px); }
+}
+@keyframes edna-flow {
+  0% { transform: translateX(-12px); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translateX(34px); opacity: 0; }
+}
+@keyframes edna-comet {
+  0% { left: 0%; opacity: 0; }
+  8% { opacity: 1; }
+  92% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+@keyframes edna-node {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); border-color: rgba(255, 255, 255, 0.1); }
+  12% { box-shadow: 0 0 0 10px rgba(99, 102, 241, 0.12), 0 0 40px rgba(99, 102, 241, 0.55); border-color: rgba(165, 180, 252, 0.7); }
+  30% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); border-color: rgba(255, 255, 255, 0.1); }
+}
+@keyframes edna-glow {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.12); }
+}
+@keyframes edna-check {
+  from { stroke-dashoffset: 24; }
+  to { stroke-dashoffset: 0; }
+}
+
+.anim-float { animation: edna-float 6s ease-in-out infinite; }
+.anim-marquee { animation: edna-marquee 32s linear infinite; }
+.anim-marquee-slow { animation: edna-marquee 55s linear infinite; }
+.anim-marquee:hover, .anim-marquee-slow:hover { animation-play-state: paused; }
+.anim-grow { transform-origin: left center; animation: edna-grow 1.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.anim-pop { animation: edna-pop 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.anim-radar { transform-box: fill-box; transform-origin: center; animation: edna-radar 1.2s cubic-bezier(0.2, 0.7, 0.2, 1) 0.3s both; }
+.anim-scan { animation: edna-scan 4.5s ease-in-out infinite; }
+.anim-strike { transform-origin: left center; animation: edna-strike 0.8s ease 1s both; }
+.anim-fade-blur { animation: edna-fade-blur 4s ease-in-out infinite alternate; }
+.anim-flow { animation: edna-flow 1.6s linear infinite; }
+.anim-comet { animation: edna-comet 4s cubic-bezier(0.5, 0, 0.5, 1) infinite; }
+.anim-node { animation: edna-node 4s ease-in-out infinite; }
+.anim-glow { animation: edna-glow 5s ease-in-out infinite; }
+.anim-check { stroke-dasharray: 24; animation: edna-check 0.6s ease both; }
+
+.mask-fade-x {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .edna-reveal { opacity: 1; transform: none; transition: none; }
+  .edna-reveal *, [class*="anim-"] { animation: none !important; }
 }
